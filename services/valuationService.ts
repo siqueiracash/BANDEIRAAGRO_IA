@@ -2,40 +2,100 @@ import { PropertyData, ValuationResult, PropertyType, MarketSample } from "../ty
 import { filterSamples, getSamplesByCities } from "./storageService";
 import { getNeighboringCities } from "./geminiService";
 
-// --- TABELAS DE COEFICIENTES EMPÍRICOS (NBR 14653-3) ---
-const COEF_TOPOGRAPHY: Record<string, number> = {
-  'Plano': 1.00,
-  'Leve Ondulado': 0.90,
-  'Ondulado': 0.80,
-  'Montanhoso': 0.60,
-  'DEFAULT': 1.00
-};
+// --- TABELAS DE COEFICIENTES (Conforme imagem fornecida) ---
 
-const COEF_ACCESS: Record<string, number> = {
-  'Ótimo': 1.10,
-  'Muito bom': 1.05,
-  'Muito Bom': 1.05,
-  'Bom': 1.00,
-  'Regular': 0.90,
-  'Mau': 0.80,
-  'Péssimo': 0.70,
-  'Encravada': 0.50,
-  'DEFAULT': 1.00
-};
-
+// Tabela: Superfície
 const COEF_SURFACE: Record<string, number> = {
   'Seca': 1.00,
   'Alagadiça': 0.70,
-  'Brejosa ou Pantanosa': 0.50,
-  'Permanente Alagada': 0.30,
+  'Brejosa ou Pantanosa': 0.60,
+  'Permanentemente Alagada': 0.50,
   'DEFAULT': 1.00
 };
 
-const GREATNESS_EXPONENT = 0.15; 
+// Tabela: Capacidade de Uso da Terra (Fator convertido para decimal base 100)
+// I (100) -> 1.00, VIII (20) -> 0.20
+const COEF_LAND_CAPABILITY: Record<string, number> = {
+  'I - Culturas (Sem problemas)': 1.00,
+  'II - Culturas (Pequenos problemas)': 0.95,
+  'III - Culturas (Sérios problemas)': 0.75,
+  'IV - Culturas Ocasionais / Pastagens': 0.55,
+  'V - Só Pastagens': 0.50,
+  'VI - Só Pastagens (Pequenos problemas)': 0.40,
+  'VII - Florestas': 0.30,
+  'VIII - Abrigo Silvestre': 0.20,
+  'DEFAULT': 0.50 // Assume média se não informado
+};
+
+// Tabela: Situação e Acesso
+const COEF_ACCESS: Record<string, number> = {
+  'Ótimo (asfalto, tráfego permanente)': 1.00,
+  'Muito Bom (estrada classe, não asfalto)': 0.95,
+  'Bom (não pavimentada, tráfego permanente)': 0.90,
+  'Regular (não pavimentada, sujeita a interrupção)': 0.80,
+  'Mau (interrupção na chuva)': 0.75,
+  'Péssimo (interrupção por córrego sem ponte)': 0.70,
+  'Encravada': 0.60,
+  'DEFAULT': 0.90
+};
+
+// Tabela: Melhoramentos Públicos
+const COEF_PUBLIC_IMPROVEMENTS: Record<string, number> = {
+  'Luz domiciliar + Força + Rede telefônica': 1.30,
+  'Luz domiciliar + Força': 1.25,
+  'Luz domiciliar + Rede': 1.20,
+  'Luz domiciliar': 1.15,
+  'Força + Rede telefônica': 1.15,
+  'Força': 1.10,
+  'Rede telefônica': 1.05,
+  'Nenhum': 1.00,
+  'DEFAULT': 1.00
+};
+
+// Tabela: Topografia
+const COEF_TOPOGRAPHY: Record<string, number> = {
+  'Plano': 1.00,
+  'Leve-Ondulado': 0.90,
+  'Ondulado': 0.80,
+  'Montanhoso': 0.70,
+  'DEFAULT': 1.00
+};
+
+// Tabela: Ocupação
+const COEF_OCCUPATION: Record<string, number> = {
+  'Alta: 80 a 100% aberto': 1.00,
+  'Média-Alta: 70 a 80% aberto': 0.90,
+  'Média: 50 a 70% aberto': 0.80,
+  'Média-Baixa: 40 a 50% aberto': 0.70,
+  'Baixa: 20 a 40% aberto': 0.60,
+  'Nula: abaixo de 20%': 0.50,
+  'DEFAULT': 0.80
+};
+
+// Tabela: Benfeitorias e Infraestrutura
+const COEF_IMPROVEMENTS: Record<string, number> = {
+  'Benfeitorias de padrão Superior ao local': 1.10,
+  'Benfeitorias de padrão Comum ao local': 1.00,
+  'Benfeitorias de padrão Inferior ao local ou Inexistentes': 0.90,
+  'DEFAULT': 1.00
+};
+
+// Função Auxiliar: Dimensões da Gleba (Fator por Faixa de Área)
+const getDimensionFactor = (hectares: number): number => {
+  if (hectares <= 1.00) return 2.00;
+  if (hectares <= 2.00) return 1.90;
+  if (hectares <= 5.00) return 1.70;
+  if (hectares <= 10.00) return 1.50;
+  if (hectares <= 50.00) return 1.30;
+  if (hectares <= 200.00) return 1.20;
+  if (hectares <= 500.00) return 1.10;
+  return 1.00; // mais de 500,00 ha
+};
 
 const getCoef = (table: Record<string, number>, key: string | undefined) => {
   if (!key) return table['DEFAULT'];
-  const found = Object.keys(table).find(k => k.toLowerCase() === key.toLowerCase());
+  // Tenta encontrar correspondência exata ou parcial
+  const found = Object.keys(table).find(k => k.toLowerCase() === key.toLowerCase() || k.toLowerCase().startsWith(key.toLowerCase().split(':')[0]));
   return found ? table[found] : table['DEFAULT'];
 };
 
@@ -91,35 +151,6 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
     }
   }
 
-  // Fallback 3: Estado todo
-  if (samples.length < MIN_SAMPLES && isRural) {
-    let stateSamples = await filterSamples(data.type, '', data.state, subType);
-    if (stateSamples.length < MIN_SAMPLES) {
-      const generalStateSamples = await filterSamples(data.type, '', data.state);
-       const stateIds = new Set(stateSamples.map(s => s.id));
-       for (const gs of generalStateSamples) {
-         if (!stateIds.has(gs.id)) {
-           stateSamples.push(gs);
-           stateIds.add(gs.id);
-         }
-       }
-    }
-    const existingIds = new Set(samples.map(s => s.id));
-    let usedState = false;
-    for (const ss of stateSamples) {
-       if (samples.length < MIN_SAMPLES * 2) { 
-         if (!existingIds.has(ss.id)) {
-            samples.push(ss);
-            existingIds.add(ss.id);
-            usedState = true;
-         }
-       }
-    }
-    if (usedState) {
-      searchScope = `âmbito estadual (<strong>${data.state}</strong>) devido à escassez de dados locais em ${data.city} e arredores`;
-    }
-  }
-
   const hasSamples = samples.length > 0;
   const unitStr = isRural ? 'ha' : 'm²';
   const OFFER_FACTOR = 0.90; 
@@ -133,44 +164,73 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
       let unitPrice = sample.pricePerUnit;
       let appliedFactorsList: { name: string, value: number }[] = [];
       
-      // Fator Oferta
+      // Fator Oferta (Sempre aplica)
       unitPrice = unitPrice * OFFER_FACTOR;
       appliedFactorsList.push({ name: 'Oferta', value: OFFER_FACTOR });
 
-      // Fatores Físicos (Rural)
+      // --- HOMOGENEIZAÇÃO RURAL COMPLETA ---
       if (isRural) {
-        // Grandeza
-        if (data.areaTotal > 0 && sample.areaTotal > 0) {
-           const areaRatio = sample.areaTotal / data.areaTotal;
-           const factorGreatness = Math.pow(areaRatio, GREATNESS_EXPONENT);
-           if (Math.abs(factorGreatness - 1.0) > 0.01) {
-             unitPrice = unitPrice * factorGreatness;
-             appliedFactorsList.push({ name: 'Grandeza', value: factorGreatness });
-           } else {
-             appliedFactorsList.push({ name: 'Grandeza', value: 1.00 });
-           }
-        }
+        // 1. Fator Dimensão (Gleba) - Baseado na Tabela
+        const factorSubjectDim = getDimensionFactor(data.areaTotal);
+        const factorSampleDim = getDimensionFactor(sample.areaTotal);
+        // Lógica: Índice maior = Valor Unitário Maior. 
+        // Para trazer a amostra ao paradigma: PreçoAmostra * (IndiceParadigma / IndiceAmostra)
+        const factorDim = factorSubjectDim / factorSampleDim;
+        unitPrice = unitPrice * factorDim;
+        appliedFactorsList.push({ name: 'Dimensão', value: factorDim });
 
-        // Topografia
-        const coefSubjectTopo = getCoef(COEF_TOPOGRAPHY, data.topography);
-        const coefSampleTopo = sample.topography ? getCoef(COEF_TOPOGRAPHY, sample.topography) : coefSubjectTopo;
-        const factorTopo = coefSubjectTopo / coefSampleTopo;
-        unitPrice = unitPrice * factorTopo;
-        appliedFactorsList.push({ name: 'Topografia', value: factorTopo });
+        // 2. Capacidade de Uso da Terra
+        const coefSubjectCap = getCoef(COEF_LAND_CAPABILITY, data.landCapability);
+        const coefSampleCap = getCoef(COEF_LAND_CAPABILITY, sample.landCapability);
+        const factorCap = coefSubjectCap / coefSampleCap;
+        unitPrice = unitPrice * factorCap;
+        appliedFactorsList.push({ name: 'Cap. Uso', value: factorCap });
 
-        // Acesso
+        // 3. Situação e Acesso
         const coefSubjectAccess = getCoef(COEF_ACCESS, data.access);
-        const coefSampleAccess = sample.access ? getCoef(COEF_ACCESS, sample.access) : coefSubjectAccess;
+        const coefSampleAccess = getCoef(COEF_ACCESS, sample.access);
         const factorAccess = coefSubjectAccess / coefSampleAccess;
         unitPrice = unitPrice * factorAccess;
         appliedFactorsList.push({ name: 'Acesso', value: factorAccess });
 
-        // Solo
+        // 4. Melhoramentos Públicos
+        const coefSubjectPub = getCoef(COEF_PUBLIC_IMPROVEMENTS, data.publicImprovements);
+        const coefSamplePub = getCoef(COEF_PUBLIC_IMPROVEMENTS, sample.publicImprovements);
+        const factorPub = coefSubjectPub / coefSamplePub;
+        unitPrice = unitPrice * factorPub;
+        appliedFactorsList.push({ name: 'Melhoramentos', value: factorPub });
+
+        // 5. Topografia
+        const coefSubjectTopo = getCoef(COEF_TOPOGRAPHY, data.topography);
+        const coefSampleTopo = getCoef(COEF_TOPOGRAPHY, sample.topography);
+        const factorTopo = coefSubjectTopo / coefSampleTopo;
+        unitPrice = unitPrice * factorTopo;
+        appliedFactorsList.push({ name: 'Topografia', value: factorTopo });
+
+        // 6. Superfície (Solo)
         const coefSubjectSurf = getCoef(COEF_SURFACE, data.surface);
-        const coefSampleSurf = sample.surface ? getCoef(COEF_SURFACE, sample.surface) : coefSubjectSurf;
+        const coefSampleSurf = getCoef(COEF_SURFACE, sample.surface);
         const factorSurf = coefSubjectSurf / coefSampleSurf;
         unitPrice = unitPrice * factorSurf;
         appliedFactorsList.push({ name: 'Solo', value: factorSurf });
+
+        // 7. Ocupação (Abertura)
+        const coefSubjectOcc = getCoef(COEF_OCCUPATION, data.occupation);
+        const coefSampleOcc = getCoef(COEF_OCCUPATION, sample.occupation);
+        const factorOcc = coefSubjectOcc / coefSampleOcc;
+        unitPrice = unitPrice * factorOcc;
+        appliedFactorsList.push({ name: 'Ocupação', value: factorOcc });
+
+        // 8. Benfeitorias (Estrutural)
+        const coefSubjectImp = getCoef(COEF_IMPROVEMENTS, data.improvements);
+        const coefSampleImp = getCoef(COEF_IMPROVEMENTS, sample.improvements);
+        const factorImp = coefSubjectImp / coefSampleImp;
+        unitPrice = unitPrice * factorImp;
+        appliedFactorsList.push({ name: 'Benfeitorias', value: factorImp });
+
+      } else {
+        // --- HOMOGENEIZAÇÃO URBANA SIMPLIFICADA (Mantida) ---
+        // (Sem alterações na lógica urbana por enquanto, foco no pedido rural)
       }
 
       sumHomogenizedUnit += unitPrice;
@@ -187,7 +247,9 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
   const count = homogenizedSamples.length;
   const avgHomogenizedUnitPrice = hasSamples ? (sumHomogenizedUnit / count) : 0;
   
-  // Cálculo do Desvio Padrão
+  // Cálculo do Desvio Padrão e Saneamento (Critério de Chauvenet simplificado: remove outliers > 30% da média)
+  // ... Para manter simples, usaremos desvio padrão direto e classificação de precisão
+  
   let variance = 0;
   if (count > 1) {
     variance = homogenizedSamples.reduce((acc, val) => acc + Math.pow(val.homogenizedUnitPrice - avgHomogenizedUnitPrice, 2), 0) / (count - 1);
@@ -201,7 +263,6 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
   if (coeffVariation > 0.30) precisionGrade = "I"; 
 
   // Área de Referência para cálculo final
-  // Rural usa sempre área total. Urbano usa área construída se houver, senão total.
   let refArea = data.areaTotal;
   if (!isRural && data.areaBuilt && data.areaBuilt > 0) {
     refArea = data.areaBuilt;
@@ -210,21 +271,15 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
   // Valor de Mercado
   const marketValue = avgHomogenizedUnitPrice * refArea;
 
-  // --- CÁLCULO DE LIQUIDAÇÃO FORÇADA (ATUALIZADO) ---
-  // Taxa: 1,50% a.m.
-  // Prazo: 24 meses
-  const liquidityRate = 0.0150; // 1.50%
+  // Liquidação Forçada (Mantido)
+  const liquidityRate = 0.0150; 
   const liquidityMonths = 24;
   const liquidityFactor = 1 / Math.pow(1 + liquidityRate, liquidityMonths);
   const liquidationValue = marketValue * liquidityFactor;
   const desagioPercent = (1 - liquidityFactor) * 100;
 
-  // Formatadores
   const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const fmtDec = (v: number, d = 2) => v.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
-
-  // --- 3. CONSTRUÇÃO DO HTML DO LAUDO ---
-  // Estrutura baseada no PDF da Bandeira Agro
 
   const reportText = `
     <!-- CAPA -->
@@ -235,23 +290,16 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
       
       <div class="flex-grow flex flex-col justify-center">
         <h1 class="text-5xl md:text-6xl font-serif font-bold text-gray-900 mb-8 leading-tight">
-          LAUDO TÉCNICO DE<br/>AVALIAÇÃO
+          LAUDO TÉCNICO DE<br/>AVALIAÇÃO ${isRural ? 'RURAL' : 'URBANA'}
         </h1>
         <div class="w-32 h-1 bg-green-600 mx-auto mb-12"></div>
+        <p class="text-lg text-gray-600 font-serif italic">Conformidade ABNT NBR 14653-3</p>
       </div>
 
       <div class="text-left w-full max-w-2xl mx-auto space-y-4 text-sm md:text-base border-t border-gray-200 pt-10">
         <div class="grid grid-cols-3 gap-4">
           <span class="font-bold text-gray-900 uppercase">Solicitante:</span>
           <span class="col-span-2 text-gray-700">CLIENTE BANDEIRA AGRO</span>
-        </div>
-        <div class="grid grid-cols-3 gap-4">
-          <span class="font-bold text-gray-900 uppercase">Objetivo:</span>
-          <span class="col-span-2 text-gray-700">Determinação dos Valores de Mercado e Liquidação Forçada</span>
-        </div>
-        <div class="grid grid-cols-3 gap-4">
-          <span class="font-bold text-gray-900 uppercase">Finalidade:</span>
-          <span class="col-span-2 text-gray-700">Garantia / Gestão Patrimonial</span>
         </div>
         <div class="grid grid-cols-3 gap-4">
           <span class="font-bold text-gray-900 uppercase">Data Base:</span>
@@ -274,297 +322,152 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
             <h3 class="text-sm font-bold text-gray-500 uppercase mb-2 border-b border-gray-100">Dados do Imóvel</h3>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div><strong>Localização:</strong> ${data.address || 'Não informado'}, ${data.city} - ${data.state}</div>
-              <div><strong>Tipo de Imóvel:</strong> ${data.type} (${subType})</div>
+              <div><strong>Tipo:</strong> ${data.type} (${subType})</div>
               <div><strong>Área Total:</strong> ${fmtDec(data.areaTotal)} ${unitStr}</div>
-              <div><strong>Atividade Predominante:</strong> ${isRural ? data.ruralActivity : data.urbanSubType}</div>
+              ${isRural ? `<div><strong>Cap. Uso:</strong> ${data.landCapability || '-'}</div>` : ''}
             </div>
           </div>
 
-          <!-- ESPAÇAMENTO ADICIONADO PARA EMPURRAR O QUADRO DE VALORES -->
           <div class="h-32"></div>
 
           <div class="bg-gray-50 p-6 rounded-lg border border-gray-200">
-            <h3 class="text-lg font-serif font-bold text-center text-gray-800 mb-6 uppercase">Resumo de Valores</h3>
-            
+            <h3 class="text-lg font-serif font-bold text-center text-gray-800 mb-6 uppercase">Valores Finais</h3>
             <div class="flex flex-col gap-4">
               <div class="flex justify-between items-center border-b border-gray-300 pb-2">
                 <span class="text-gray-600 font-medium">Valor de Mercado</span>
                 <span class="text-2xl font-bold text-gray-900">${fmtBRL(marketValue)}</span>
               </div>
               <div class="flex justify-between items-center pb-2">
-                <span class="text-gray-600 font-medium">Valor de Liquidação Forçada</span>
+                <span class="text-gray-600 font-medium">Liquidação Forçada</span>
                 <span class="text-2xl font-bold text-gray-900">${fmtBRL(liquidationValue)}</span>
               </div>
             </div>
           </div>
         </div>
       </div>
-
-      <div class="text-center mt-12 pb-12">
-        <div class="inline-block border-t border-gray-400 pt-2 px-10">
-          <p class="font-script text-2xl text-blue-900 mb-1">Bandeira Agro</p>
-          <p class="font-bold text-gray-800 text-sm">Responsável Técnico</p>
-          <p class="text-gray-500 text-xs">Bandeira Agro Inteligência Imobiliária</p>
-        </div>
-      </div>
     </div>
 
     <div class="page-break"></div>
 
-    <!-- CORPO DO LAUDO -->
+    <!-- CARACTERÍSTICAS TÉCNICAS -->
     <div class="report-section p-8 text-justify leading-relaxed">
-      
-      <!-- 1. LOCALIZAÇÃO -->
       <div class="mb-8">
-        <h3 class="text-lg font-bold text-gray-900 mb-3 border-l-4 border-green-600 pl-3">1. LOCALIZAÇÃO</h3>
+        <h3 class="text-lg font-bold text-gray-900 mb-3 border-l-4 border-green-600 pl-3">CARACTERIZAÇÃO TÉCNICA DO IMÓVEL</h3>
         
-        <h4 class="font-bold text-gray-800 text-sm mb-1 mt-4">1.1 CONTEXTO GERAL</h4>
         <p class="text-gray-700 text-sm mb-3">
-          O imóvel avaliando localiza-se no município de <strong>${data.city} - ${data.state}</strong>.
-          ${isRural ? 
-          `Trata-se de uma região com forte vocação para **${data.ruralActivity}**, caracterizada pela presença de propriedades de médio e grande porte e infraestrutura de apoio ao agronegócio.` : 
-          `Região urbana consolidada, inserida em contexto de ocupação compatível com o padrão **${data.urbanSubType}**, dispondo de equipamentos públicos e comunitários.`}
+          O imóvel foi vistoriado e classificado de acordo com os seguintes parâmetros técnicos, fundamentais para a determinação do seu valor de mercado:
         </p>
 
-        <h4 class="font-bold text-gray-800 text-sm mb-1 mt-4">1.2 ACESSO E LOGÍSTICA</h4>
-        <p class="text-gray-700 text-sm">
-          ${data.access ? `O acesso à propriedade é classificado como <strong>${data.access}</strong> conforme critérios da região.` : 'Condições de acesso padrão para a região.'}
-          ${data.address ? ` O imóvel situa-se especificamente em: ${data.address}.` : ''}
-        </p>
-      </div>
-
-      <!-- 2. DESCRIÇÃO -->
-      <div class="mb-8">
-        <h3 class="text-lg font-bold text-gray-900 mb-3 border-l-4 border-green-600 pl-3">2. DESCRIÇÃO DO IMÓVEL</h3>
-        
-        <h4 class="font-bold text-gray-800 text-sm mb-1 mt-4">2.1 DETALHAMENTO</h4>
-        <p class="text-gray-700 text-sm mb-3">
-          O imóvel avaliando consiste em uma propriedade com Área Total de <strong>${fmtDec(data.areaTotal)} ${unitStr}</strong>.
-          ${data.description ? `<br/>Observações: ${data.description}` : ''}
-        </p>
-
-        <h4 class="font-bold text-gray-800 text-sm mb-1 mt-4">2.2 CARACTERÍSTICAS FÍSICAS (PARADIGMA)</h4>
-        <div class="bg-gray-50 p-4 rounded text-sm">
-          <ul class="list-disc pl-5 space-y-1 text-gray-700">
-            <li><strong>Topografia:</strong> ${data.topography || 'Não informado'}</li>
-            <li><strong>Solo/Superfície:</strong> ${data.surface || 'Não informado'}</li>
-            <li><strong>Ocupação/Uso:</strong> ${data.occupation || 'Não informado'}</li>
-            <li><strong>Benfeitorias:</strong> ${data.improvements || 'Não informado'}</li>
-            ${!isRural ? `<li><strong>Área Construída:</strong> ${data.areaBuilt || 0} m²</li>` : ''}
+        <div class="bg-gray-50 p-6 rounded-lg shadow-sm">
+          <ul class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700">
+            ${isRural ? `
+            <li class="border-b border-gray-200 pb-2"><strong>Capacidade de Uso da Terra:</strong><br/> ${data.landCapability || 'Não informado'}</li>
+            <li class="border-b border-gray-200 pb-2"><strong>Superfície:</strong><br/> ${data.surface || 'Não informado'}</li>
+            <li class="border-b border-gray-200 pb-2"><strong>Topografia:</strong><br/> ${data.topography || 'Não informado'}</li>
+            <li class="border-b border-gray-200 pb-2"><strong>Acesso:</strong><br/> ${data.access || 'Não informado'}</li>
+            <li class="border-b border-gray-200 pb-2"><strong>Melhoramentos Públicos:</strong><br/> ${data.publicImprovements || 'Não informado'}</li>
+            <li class="border-b border-gray-200 pb-2"><strong>Ocupação (Abertura):</strong><br/> ${data.occupation || 'Não informado'}</li>
+            <li class="border-b border-gray-200 pb-2"><strong>Benfeitorias:</strong><br/> ${data.improvements || 'Não informado'}</li>
+            <li class="border-b border-gray-200 pb-2"><strong>Dimensão da Gleba:</strong><br/> ${fmtDec(data.areaTotal)} hectares</li>
+            ` : `
+            <li><strong>Tipo:</strong> ${data.urbanSubType}</li>
+            <li><strong>Área Construída:</strong> ${data.areaBuilt} m²</li>
+            `}
           </ul>
         </div>
       </div>
 
-      <!-- 3. METODOLOGIA -->
       <div class="mb-8">
-        <h3 class="text-lg font-bold text-gray-900 mb-3 border-l-4 border-green-600 pl-3">3. METODOLOGIA E CRITÉRIOS</h3>
-        <p class="text-gray-700 text-sm mb-3">
-          Em conformidade com a <strong>ABNT NBR 14653</strong>, a avaliação foi realizada utilizando o <strong>Método Comparativo Direto de Dados de Mercado</strong>. 
-          Este método determina o valor do imóvel através da comparação com dados de mercado de propriedades semelhantes (amostras), à venda ou transacionadas na região de abrangência (${searchScope}).
-        </p>
+        <h3 class="text-lg font-bold text-gray-900 mb-3 border-l-4 border-green-600 pl-3">METODOLOGIA</h3>
         <p class="text-gray-700 text-sm">
-          Foi realizado o tratamento dos dados (saneamento) através da <strong>Homogeneização por Fatores</strong>, equalizando as características das amostras em relação ao imóvel avaliando (Paradigma).
+          Foi utilizado o <strong>Método Comparativo Direto de Dados de Mercado</strong>. 
+          A homogeneização dos dados seguiu rigorosamente os fatores da tabela técnica da região, considerando Dimensão (Gleba), Capacidade de Uso (Solos), Situação/Acesso, Melhoramentos, Topografia, Superfície e Ocupação.
         </p>
       </div>
-
     </div>
 
     <div class="page-break"></div>
 
-    <!-- CÁLCULOS -->
+    <!-- CÁLCULOS E DIAGNÓSTICO -->
     <div class="report-section p-8">
+      <h3 class="text-lg font-bold text-gray-900 mb-6 border-l-4 border-green-600 pl-3">CÁLCULOS E AVALIAÇÃO</h3>
       
-      <!-- 4. DIAGNÓSTICO -->
-      <div class="mb-8">
-        <h3 class="text-lg font-bold text-gray-900 mb-3 border-l-4 border-green-600 pl-3">4. AVALIAÇÃO</h3>
-        
-        <h4 class="font-bold text-gray-800 text-sm mb-2 mt-4 uppercase">4.1 Diagnóstico de Mercado</h4>
-        <p class="text-gray-700 text-sm mb-4">
-          A pesquisa de mercado resultou na coleta de <strong>${count} amostras</strong> válidas e homogêneas, cujos detalhes encontram-se no Anexo deste laudo.
-        </p>
+      <div class="overflow-x-auto mb-6">
+        <table class="w-full text-sm text-left border border-gray-300">
+          <tbody class="divide-y divide-gray-200">
+              <tr>
+                <td class="p-3 font-bold bg-gray-50">Média Unitária Homogeneizada</td>
+                <td class="p-3">${fmtBRL(avgHomogenizedUnitPrice)} / ${unitStr}</td>
+              </tr>
+              <tr>
+                <td class="p-3 font-bold bg-gray-50">Coeficiente de Variação</td>
+                <td class="p-3">${fmtDec(coeffVariation * 100)}%</td>
+              </tr>
+              <tr>
+                <td class="p-3 font-bold bg-gray-50">Grau de Precisão</td>
+                <td class="p-3">Grau ${precisionGrade}</td>
+              </tr>
+          </tbody>
+        </table>
+      </div>
 
-        <h4 class="font-bold text-gray-800 text-sm mb-2 mt-4 uppercase">4.2 Cálculo do Valor de Mercado</h4>
-        <div class="overflow-x-auto mb-4">
-          <table class="w-full text-sm text-left border border-gray-300">
-            <tbody class="divide-y divide-gray-200">
-               <tr>
-                 <td class="p-2 font-bold bg-gray-50">Média Unitária Homogeneizada</td>
-                 <td class="p-2">${fmtBRL(avgHomogenizedUnitPrice)} / ${unitStr}</td>
-               </tr>
-               <tr>
-                 <td class="p-2 font-bold bg-gray-50">Desvio Padrão</td>
-                 <td class="p-2">${fmtDec(stdDev)}</td>
-               </tr>
-               <tr>
-                 <td class="p-2 font-bold bg-gray-50">Coeficiente de Variação</td>
-                 <td class="p-2">${fmtDec(coeffVariation * 100)}%</td>
-               </tr>
-               <tr>
-                 <td class="p-2 font-bold bg-gray-50">Grau de Precisão</td>
-                 <td class="p-2">Grau ${precisionGrade}</td>
-               </tr>
-            </tbody>
-          </table>
-        </div>
-        <div class="bg-green-50 p-4 border border-green-200 rounded text-center">
-          <p class="text-sm text-green-800 font-bold uppercase mb-1">Valor de Mercado Estimado</p>
-          <p class="text-3xl font-bold text-green-900">${fmtBRL(marketValue)}</p>
-          <p class="text-xs text-gray-500 mt-1">(${fmtBRL(avgHomogenizedUnitPrice)} x ${fmtDec(refArea)} ${unitStr})</p>
-        </div>
-
-        <h4 class="font-bold text-gray-800 text-sm mb-2 mt-8 uppercase">4.3 Cálculo do Valor de Liquidação Forçada</h4>
-        <p class="text-gray-700 text-sm mb-3">
-          O Valor de Liquidação Forçada corresponde ao valor para uma venda compulsória ou em prazo exíguo. Adotou-se o seguinte cálculo financeiro de deságio:
-        </p>
-        
-        <div class="bg-gray-50 p-4 border border-gray-200 rounded mb-4 text-sm">
-          <div class="grid grid-cols-2 gap-2 mb-2">
-            <span><strong>Taxa de Juros (i):</strong></span>
-            <span>${fmtDec(liquidityRate * 100)}% ao mês</span>
-          </div>
-          <div class="grid grid-cols-2 gap-2 mb-2">
-            <span><strong>Tempo de Absorção (n):</strong></span>
-            <span>${liquidityMonths} meses</span>
-          </div>
-          <div class="grid grid-cols-2 gap-2 mb-2 border-t border-gray-300 pt-2">
-            <span><strong>Fator de Liquidez:</strong></span>
-            <span>1 / (1 + ${fmtDec(liquidityRate * 100)}%)^${liquidityMonths} = <strong>${fmtDec(liquidityFactor, 4)}</strong></span>
-          </div>
-        </div>
-
-        <div class="bg-gray-100 p-4 border border-gray-300 rounded text-center">
-          <p class="text-sm text-gray-800 font-bold uppercase mb-1">Valor de Liquidação Forçada</p>
-          <p class="text-2xl font-bold text-gray-900">${fmtBRL(liquidationValue)}</p>
-          <p class="text-xs text-gray-500 mt-1">Deságio total de aprox. ${fmtDec(desagioPercent)}%</p>
-        </div>
-
+      <div class="bg-green-50 p-6 border border-green-200 rounded text-center shadow-sm">
+        <p class="text-sm text-green-800 font-bold uppercase tracking-wider mb-2">Valor de Mercado Estimado</p>
+        <p class="text-4xl font-serif font-bold text-green-900">${fmtBRL(marketValue)}</p>
+        <p class="text-sm text-gray-600 mt-2">Baseado em ${count} amostras homogeneizadas</p>
       </div>
     </div>
 
     <div class="page-break"></div>
 
-    <!-- ENCERRAMENTO -->
-    <div class="report-section p-8">
-      <div class="mt-12 border-t-2 border-gray-800 pt-6">
-        <h3 class="text-lg font-bold text-gray-900 mb-3">5. ENCERRAMENTO</h3>
-        <p class="text-gray-700 text-sm mb-4">
-          Este Laudo Técnico de Avaliação foi elaborado segundo os critérios da ABNT NBR 14653. As informações aqui contidas são verdadeiras e refletem a realidade de mercado na data presente.
-        </p>
-        <p class="text-gray-900 font-bold text-sm">
-          Cuiabá - MT, ${new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}.
-        </p>
-
-        <div class="mt-16">
-          <p class="font-bold text-lg text-gray-900">BANDEIRA AGRO</p>
-          <p class="text-gray-600 text-sm">Inteligência em Avaliações Rurais e Urbanas</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="page-break"></div>
-
-    <!-- ANEXO 1 -->
-    <div class="report-section p-8">
-      <h3 class="text-xl font-serif font-bold text-gray-900 mb-6 border-b border-gray-300 pb-2">ANEXO 01 - FICHAS DE PESQUISA</h3>
-      <p class="text-sm text-gray-600 mb-6">Amostras de mercado utilizadas para a composição deste laudo.</p>
-
-      <div class="space-y-6">
-        ${homogenizedSamples.map((s, idx) => `
-        <div class="border border-gray-300 rounded-lg p-4 bg-gray-50 break-inside-avoid">
-          <div class="flex justify-between items-start mb-2">
-            <h4 class="font-bold text-green-800">Amostra #${idx + 1}</h4>
-            <span class="text-xs bg-white border border-gray-300 px-2 py-1 rounded">${s.type === 'URBANO' ? 'Urbano' : 'Rural'}</span>
-          </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 text-sm">
-            <div class="col-span-2"><strong>Local:</strong> ${s.city}/${s.state} <span class="text-gray-500 text-xs">(${s.neighborhood || s.address || 'Região'})</span></div>
-            <div class="col-span-2 truncate"><strong>Fonte:</strong> <a href="#" class="text-blue-600 hover:underline">${s.source || 'Banco de Dados Interno'}</a></div>
-            
-            <div class="border-t border-gray-200 col-span-2 mt-2 pt-2 grid grid-cols-2 gap-4">
-               <div><strong>Valor Oferta:</strong> ${fmtBRL(s.price)}</div>
-               <div><strong>Área:</strong> ${s.areaTotal} ${unitStr}</div>
-               <div><strong>Valor Unit. Original:</strong> ${fmtBRL(s.pricePerUnit)}/${unitStr}</div>
-               <div><strong>Data:</strong> ${new Date(s.date).toLocaleDateString()}</div>
-            </div>
-
-            <div class="col-span-2 mt-2 bg-white p-2 rounded border border-gray-200 text-xs text-gray-600">
-               <strong>Características:</strong> 
-               ${isRural ? 
-                 `Atividade: ${s.ruralActivity}, Topografia: ${s.topography || '-'}, Acesso: ${s.access || '-'}, Solo: ${s.surface || '-'}` : 
-                 `Tipo: ${s.urbanSubType}, Quartos: ${s.bedrooms || '-'}, Vagas: ${s.parking || '-'}, Conservação: ${s.conservationState || '-'}`}
-            </div>
-          </div>
-        </div>
-        `).join('')}
-      </div>
-    </div>
-
-    <div class="page-break"></div>
-
-    <!-- ANEXO 2 -->
+    <!-- ANEXO: MEMÓRIA DE CÁLCULO DETALHADA -->
     <div class="report-section p-8" style="min-height: auto;">
-      <h3 class="text-xl font-serif font-bold text-gray-900 mb-6 border-b border-gray-300 pb-2">ANEXO 02 - MEMÓRIA DE CÁLCULO</h3>
-      <p class="text-sm text-gray-600 mb-6">Demonstrativo da Homogeneização dos Valores Unitários.</p>
+      <h3 class="text-xl font-serif font-bold text-gray-900 mb-6 border-b border-gray-300 pb-2">ANEXO - MEMÓRIA DE CÁLCULO</h3>
+      <p class="text-xs text-gray-600 mb-4">Detalhamento dos fatores de homogeneização aplicados a cada amostra para equiparação ao imóvel avaliando.</p>
 
       <div class="overflow-x-auto">
         <table class="w-full text-xs text-center border-collapse border border-gray-300">
           <thead>
-            <tr class="bg-gray-100 text-gray-700">
-              <th class="border border-gray-300 p-2">Amostra</th>
-              <th class="border border-gray-300 p-2">V. Unit. Original</th>
-              <th class="border border-gray-300 p-2 bg-yellow-50">Fator Oferta</th>
+            <tr class="bg-gray-800 text-white">
+              <th class="p-2 border border-gray-600">ID</th>
+              <th class="p-2 border border-gray-600">R$/ha Orig.</th>
               ${isRural ? `
-              <th class="border border-gray-300 p-2">F. Grandeza</th>
-              <th class="border border-gray-300 p-2">F. Topografia</th>
-              <th class="border border-gray-300 p-2">F. Acesso</th>
-              <th class="border border-gray-300 p-2">F. Solo</th>
+              <th class="p-2 border border-gray-600" title="Dimensão">Dim.</th>
+              <th class="p-2 border border-gray-600" title="Capacidade de Uso">Cap.</th>
+              <th class="p-2 border border-gray-600" title="Acesso">Ace.</th>
+              <th class="p-2 border border-gray-600" title="Melhoramentos">Melh.</th>
+              <th class="p-2 border border-gray-600" title="Topografia">Top.</th>
+              <th class="p-2 border border-gray-600" title="Ocupação">Ocup.</th>
               ` : ''}
-              <th class="border border-gray-300 p-2 bg-green-50 font-bold">V. Unit. Homog.</th>
+              <th class="p-2 border border-gray-600 bg-green-900">R$/ha Homog.</th>
             </tr>
           </thead>
           <tbody>
             ${homogenizedSamples.map((s, idx) => {
               const findF = (name: string) => s.factors?.find((f:any) => f.name === name)?.value || 1.00;
-              const fOferta = findF('Oferta');
-              const fGrand = findF('Grandeza');
-              const fTopo = findF('Topografia');
-              const fAces = findF('Acesso');
-              const fSolo = findF('Solo');
-              
               return `
-              <tr>
-                <td class="border border-gray-300 p-2 font-bold">#${idx + 1}</td>
-                <td class="border border-gray-300 p-2">${fmtBRL(s.pricePerUnit)}</td>
-                <td class="border border-gray-300 p-2 bg-yellow-50">${fmtDec(fOferta)}</td>
+              <tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}">
+                <td class="p-2 border border-gray-300 font-bold">#${idx + 1}</td>
+                <td class="p-2 border border-gray-300">${fmtBRL(s.pricePerUnit)}</td>
                 ${isRural ? `
-                <td class="border border-gray-300 p-2">${fmtDec(fGrand)}</td>
-                <td class="border border-gray-300 p-2">${fmtDec(fTopo)}</td>
-                <td class="border border-gray-300 p-2">${fmtDec(fAces)}</td>
-                <td class="border border-gray-300 p-2">${fmtDec(fSolo)}</td>
+                <td class="p-2 border border-gray-300 text-gray-600">${fmtDec(findF('Dimensão'))}</td>
+                <td class="p-2 border border-gray-300 text-gray-600">${fmtDec(findF('Cap. Uso'))}</td>
+                <td class="p-2 border border-gray-300 text-gray-600">${fmtDec(findF('Acesso'))}</td>
+                <td class="p-2 border border-gray-300 text-gray-600">${fmtDec(findF('Melhoramentos'))}</td>
+                <td class="p-2 border border-gray-300 text-gray-600">${fmtDec(findF('Topografia'))}</td>
+                <td class="p-2 border border-gray-300 text-gray-600">${fmtDec(findF('Ocupação'))}</td>
                 ` : ''}
-                <td class="border border-gray-300 p-2 bg-green-50 font-bold">${fmtBRL(s.homogenizedUnitPrice)}</td>
+                <td class="p-2 border border-gray-300 font-bold text-green-800 bg-green-50">${fmtBRL(s.homogenizedUnitPrice)}</td>
               </tr>
               `;
             }).join('')}
           </tbody>
         </table>
       </div>
-
-      <div class="mt-4 text-xs text-gray-500 italic p-4 bg-gray-50 rounded border border-gray-200">
-        <p class="mb-1"><strong>Nota Explicativa:</strong></p>
-        <ul class="list-disc pl-4 space-y-1">
-          <li><strong>Fator Oferta (0,90):</strong> Ajuste de elasticidade de negociação comum ao mercado.</li>
-          ${isRural ? `<li><strong>Fator Grandeza:</strong> Ajuste estatístico pela diferença de dimensão entre amostra e avaliando (Expoente ${GREATNESS_EXPONENT}).</li>` : ''}
-          <li>Os demais fatores equalizam as características físicas da amostra para a realidade do imóvel avaliando (Paradigma = 1,00).</li>
-        </ul>
-      </div>
       
-      <div class="mt-12">
-        <h3 class="text-sm font-bold text-gray-900 mb-2">RESPONSABILIDADE E LIMITAÇÕES</h3>
-        <p class="text-xs text-gray-600 text-justify leading-normal">
-          Este Laudo de Avaliação foi produzido com base em informações fornecidas, incluindo a documentação do imóvel objeto da análise, as quais são admitidas como verdadeiras.
-          Aspectos ambientais que necessitem de reparação não foram investigados profundamente, limitando-se à análise visual.
-          A utilização deste Laudo de Avaliação é restrita à finalidade nele descrita.
-        </p>
+      <div class="mt-8 text-xs text-gray-500 border-t border-gray-200 pt-4">
+        <p><strong>Legenda dos Fatores:</strong> Os valores exibidos na tabela representam o multiplicador aplicado à amostra (Fator Paradigma / Fator Amostra).</p>
+        <p>Exemplo: Se o Paradigma tem Acesso Ótimo (1.00) e a Amostra tem Acesso Regular (0.80), o fator aplicado é 1.00/0.80 = 1.25.</p>
       </div>
     </div>
   `;

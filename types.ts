@@ -28,6 +28,10 @@ export interface PropertyData {
   topography?: string;
   occupation?: string;
   improvements?: string;
+  
+  // Novos campos baseados na tabela detalhada
+  landCapability?: string; // Capacidade de Uso da Terra (I a VIII)
+  publicImprovements?: string; // Melhoramentos Públicos (Luz, Força, etc)
 }
 
 export interface GroundingSource {
@@ -66,6 +70,10 @@ export interface MarketSample {
   topography?: string;
   occupation?: string;
   improvements?: string;
+  
+  // Novos campos rurais para homogeneização
+  landCapability?: string;
+  publicImprovements?: string;
 }
 
 // ATUALIZADA: Agora suporta MarketSample ou GroundingSource
