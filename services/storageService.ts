@@ -33,7 +33,14 @@ export const getSamples = async (): Promise<MarketSample[]> => {
 };
 
 export const saveSample = async (sample: Omit<MarketSample, 'id' | 'pricePerUnit'>): Promise<MarketSample | null> => {
-  const divisor = sample.areaBuilt && sample.areaBuilt > 0 ? sample.areaBuilt : sample.areaTotal;
+  // CORREÇÃO: Define o divisor correto baseado no tipo.
+  // RURAL: Sempre divide pela Área Total (Preço por Hectare).
+  // URBANO: Divide pela Área Construída se houver, senão pela Área Total.
+  let divisor = sample.areaTotal;
+  if (sample.type === PropertyType.URBAN && sample.areaBuilt && sample.areaBuilt > 0) {
+    divisor = sample.areaBuilt;
+  }
+  
   const pricePerUnit = sample.price / (divisor || 1);
 
   // Prepara o objeto, removendo campos undefined para o Supabase não reclamar
@@ -71,7 +78,12 @@ export const saveSample = async (sample: Omit<MarketSample, 'id' | 'pricePerUnit
 };
 
 export const updateSample = async (sample: MarketSample): Promise<MarketSample | null> => {
-  const divisor = sample.areaBuilt && sample.areaBuilt > 0 ? sample.areaBuilt : sample.areaTotal;
+  // CORREÇÃO: Mesma lógica de divisor do saveSample
+  let divisor = sample.areaTotal;
+  if (sample.type === PropertyType.URBAN && sample.areaBuilt && sample.areaBuilt > 0) {
+    divisor = sample.areaBuilt;
+  }
+  
   const pricePerUnit = sample.price / (divisor || 1);
 
   const updatePayload = {

@@ -106,19 +106,37 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
   }
 
   const hasSamples = samples.length > 0;
-  let avgUnitPrice = 0;
+  const unitStr = data.type === PropertyType.URBAN ? 'm²' : 'ha';
+  
+  let avgRawUnitPrice = 0;
+  let avgAdjustedUnitPrice = 0;
   let estimatedValue = 0;
+  const OFFER_FACTOR = 0.90; // Fator de Oferta (-10%)
 
   if (hasSamples) {
+    // 1. Média Unitária das Ofertas (Bruta)
     const sumUnit = samples.reduce((acc, curr) => acc + curr.pricePerUnit, 0);
-    avgUnitPrice = sumUnit / samples.length;
+    avgRawUnitPrice = sumUnit / samples.length;
     
-    const refArea = (data.areaBuilt && data.areaBuilt > 0) ? data.areaBuilt : data.areaTotal;
-    estimatedValue = avgUnitPrice * refArea;
+    // 2. Aplicação do Fator de Oferta (Homogeneização)
+    avgAdjustedUnitPrice = avgRawUnitPrice * OFFER_FACTOR;
+
+    // 3. Definição da Área de Referência para cálculo final
+    let refArea = data.areaTotal; // Padrão (especialmente para RURAL, onde Hectare manda)
+    
+    // Apenas para URBANO, se houver área construída, usamos ela como base (ex: apartamento)
+    // Para RURAL, mesmo que haja área construída (sede), o valor de referência do comparativo é por Hectare (Area Total).
+    if (data.type === PropertyType.URBAN && data.areaBuilt && data.areaBuilt > 0) {
+      refArea = data.areaBuilt;
+    }
+    
+    // 4. Cálculo Final
+    estimatedValue = avgAdjustedUnitPrice * refArea;
   }
 
   const fmtVal = estimatedValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  const unitStr = data.type === PropertyType.URBAN ? 'm²' : 'ha';
+  const fmtAvgRaw = avgRawUnitPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const fmtAvgAdj = avgAdjustedUnitPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   const reportText = `
 # LAUDO DE AVALIAÇÃO - BANDEIRA AGRO
@@ -131,24 +149,32 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
 ## 1. DADOS DO IMÓVEL
 * **Endereço:** ${data.address || 'N/A'}
 * **Cidade/UF:** ${data.city}/${data.state}
-* **Área Total:** ${data.areaTotal} ${unitStr}
+* **Área Total:** ${data.areaTotal} ${data.type === PropertyType.RURAL ? 'ha' : 'm²'}
 * **Descrição:** ${data.description || '-'}
 
 ---
 
 ## 2. METODOLOGIA (MÉTODO COMPARATIVO)
 Foi realizada pesquisa no Banco de Dados da Bandeira Agro com abrangência na ${searchScope}.
+Os valores de oferta coletados foram tratados estatisticamente conforme a norma ABNT NBR 14653.
 
 * **Amostras Utilizadas:** ${samples.length}
 
 ---
 
-## 3. CÁLCULOS
-* **Média Unitária:** ${avgUnitPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} / ${unitStr}
+## 3. CÁLCULOS E HOMOGENEIZAÇÃO
+
+O cálculo do valor de mercado partiu da média aritmética dos valores unitários das amostras, aplicando-se o **Fator de Oferta de 0,90** para ajuste ao valor provável de transação.
+
+* **Média Unitária (Oferta):** ${fmtAvgRaw} / ${unitStr}
+* **Fator de Oferta:** 0,90 (-10%)
+* **Média Unitária (Ajustada):** **${fmtAvgAdj} / ${unitStr}**
 
 ---
 
 ## 4. CONCLUSÃO DE VALOR
+
+Cálculo: ${fmtAvgAdj} x ${data.type === PropertyType.RURAL ? data.areaTotal : ((data.areaBuilt && data.areaBuilt > 0) ? data.areaBuilt : data.areaTotal)}
 
 # **${hasSamples ? fmtVal : 'INCONCLUSIVO (Sem amostras)'}**
 
