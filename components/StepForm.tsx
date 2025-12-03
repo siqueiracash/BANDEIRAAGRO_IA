@@ -4,18 +4,39 @@ import { BRAZIL_STATES } from '../constants';
 
 interface StepFormProps {
   propertyType: PropertyType;
+  initialData?: PropertyData; // New prop for pre-filling
   onSubmit: (data: PropertyData) => void;
   onBack: () => void;
 }
 
-const StepForm: React.FC<StepFormProps> = ({ propertyType, onSubmit, onBack }) => {
+const StepForm: React.FC<StepFormProps> = ({ propertyType, initialData, onSubmit, onBack }) => {
   const [formData, setFormData] = useState<Partial<PropertyData>>({
     type: propertyType,
-    city: '',
-    state: '',
-    description: '',
-    urbanSubType: 'Apartamento', 
-    ruralActivity: 'Lavoura',
+    city: initialData?.city || '',
+    state: initialData?.state || '',
+    description: initialData?.description || '',
+    address: initialData?.address || '',
+    areaTotal: initialData?.areaTotal || 0,
+    areaBuilt: initialData?.areaBuilt || 0,
+    
+    // Urban
+    urbanSubType: initialData?.urbanSubType || 'Apartamento', 
+    neighborhood: initialData?.neighborhood || '',
+    bedrooms: initialData?.bedrooms || 0,
+    bathrooms: initialData?.bathrooms || 0,
+    parking: initialData?.parking || 0,
+    conservationState: initialData?.conservationState || '',
+
+    // Rural
+    ruralActivity: initialData?.ruralActivity || 'Lavoura',
+    carNumber: initialData?.carNumber || '',
+    surface: initialData?.surface || '',
+    access: initialData?.access || '',
+    topography: initialData?.topography || '',
+    occupation: initialData?.occupation || '',
+    improvements: initialData?.improvements || '',
+    landCapability: initialData?.landCapability || '',
+    publicImprovements: initialData?.publicImprovements || '',
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -62,6 +83,7 @@ const StepForm: React.FC<StepFormProps> = ({ propertyType, onSubmit, onBack }) =
               type="text"
               name="city"
               required
+              value={formData.city}
               className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-agro-500"
               placeholder="Ex: Ribeirão Preto"
               onChange={handleChange}
@@ -69,7 +91,7 @@ const StepForm: React.FC<StepFormProps> = ({ propertyType, onSubmit, onBack }) =
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Estado *</label>
-            <select name="state" required className="w-full border border-gray-300 rounded-lg px-4 py-2 bg-white" onChange={handleChange}>
+            <select name="state" required value={formData.state} className="w-full border border-gray-300 rounded-lg px-4 py-2 bg-white" onChange={handleChange}>
               <option value="">UF</option>
               {BRAZIL_STATES.map(uf => (
                 <option key={uf} value={uf}>{uf}</option>
@@ -84,6 +106,7 @@ const StepForm: React.FC<StepFormProps> = ({ propertyType, onSubmit, onBack }) =
             type="text"
             name="address"
             required={!isRural}
+            value={formData.address}
             className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-agro-500"
             placeholder={isRural ? "Ex: Estrada Municipal km 5" : "Ex: Rua das Flores, 123"}
             onChange={handleChange}
@@ -98,7 +121,7 @@ const StepForm: React.FC<StepFormProps> = ({ propertyType, onSubmit, onBack }) =
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-bold text-gray-800 mb-1">Atividade Principal</label>
-                <select name="ruralActivity" onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white">
+                <select name="ruralActivity" value={formData.ruralActivity} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white">
                   <option value="Lavoura">Lavoura</option>
                   <option value="Pasto">Pasto</option>
                   <option value="Floresta">Floresta</option>
@@ -115,6 +138,7 @@ const StepForm: React.FC<StepFormProps> = ({ propertyType, onSubmit, onBack }) =
                   required
                   min="0"
                   step="0.01"
+                  value={formData.areaTotal || ''}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2"
                   placeholder="0.00"
                   onChange={handleChange}
@@ -126,7 +150,7 @@ const StepForm: React.FC<StepFormProps> = ({ propertyType, onSubmit, onBack }) =
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="md:col-span-2">
                 <label className="block text-sm font-bold text-gray-800 mb-1">Capacidade de Uso da Terra (Classe)</label>
-                <select name="landCapability" onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white">
+                <select name="landCapability" value={formData.landCapability} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white">
                   <option value="">Selecione...</option>
                   <option value="I - Culturas (Sem problemas)">I - Culturas (Sem problemas)</option>
                   <option value="II - Culturas (Pequenos problemas)">II - Culturas (Pequenos problemas)</option>
@@ -141,7 +165,7 @@ const StepForm: React.FC<StepFormProps> = ({ propertyType, onSubmit, onBack }) =
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Situação e Acesso</label>
-                <select name="access" onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white">
+                <select name="access" value={formData.access} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white">
                   <option value="">Selecione...</option>
                   <option value="Ótimo (asfalto, tráfego permanente)">Ótimo (asfalto)</option>
                   <option value="Muito Bom (estrada classe, não asfalto)">Muito Bom (estrada classe)</option>
@@ -155,7 +179,7 @@ const StepForm: React.FC<StepFormProps> = ({ propertyType, onSubmit, onBack }) =
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Melhoramentos Públicos</label>
-                <select name="publicImprovements" onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white">
+                <select name="publicImprovements" value={formData.publicImprovements} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white">
                   <option value="">Selecione...</option>
                   <option value="Luz domiciliar + Força + Rede telefônica">Luz + Força + Telefone</option>
                   <option value="Luz domiciliar + Força">Luz + Força</option>
@@ -168,7 +192,7 @@ const StepForm: React.FC<StepFormProps> = ({ propertyType, onSubmit, onBack }) =
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Topografia</label>
-                <select name="topography" onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white">
+                <select name="topography" value={formData.topography} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white">
                   <option value="">Selecione...</option>
                   <option value="Plano">Plano</option>
                   <option value="Leve-Ondulado">Leve-Ondulado</option>
@@ -179,7 +203,7 @@ const StepForm: React.FC<StepFormProps> = ({ propertyType, onSubmit, onBack }) =
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Superfície (Solo)</label>
-                <select name="surface" onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white">
+                <select name="surface" value={formData.surface} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white">
                   <option value="">Selecione...</option>
                   <option value="Seca">Seca</option>
                   <option value="Alagadiça">Alagadiça</option>
@@ -190,7 +214,7 @@ const StepForm: React.FC<StepFormProps> = ({ propertyType, onSubmit, onBack }) =
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Ocupação (Abertura)</label>
-                <select name="occupation" onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white">
+                <select name="occupation" value={formData.occupation} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white">
                   <option value="">Selecione...</option>
                   <option value="Alta: 80 a 100% aberto">Alta: 80 a 100% aberto</option>
                   <option value="Média-Alta: 70 a 80% aberto">Média-Alta: 70 a 80%</option>
@@ -203,7 +227,7 @@ const StepForm: React.FC<StepFormProps> = ({ propertyType, onSubmit, onBack }) =
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Benfeitorias e Infraestrutura</label>
-                <select name="improvements" onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white">
+                <select name="improvements" value={formData.improvements} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white">
                   <option value="">Selecione...</option>
                   <option value="Benfeitorias de padrão Superior ao local">Superior ao local</option>
                   <option value="Benfeitorias de padrão Comum ao local">Comum ao local</option>
@@ -229,15 +253,15 @@ const StepForm: React.FC<StepFormProps> = ({ propertyType, onSubmit, onBack }) =
                 </div>
                 <div>
                    <label className="block text-sm font-bold text-gray-700 mb-1">Área Total (m²)</label>
-                   <input type="number" name="areaTotal" required min="0" className="w-full border border-gray-300 rounded-lg px-3 py-2" onChange={handleChange} />
+                   <input type="number" name="areaTotal" required min="0" value={formData.areaTotal || ''} className="w-full border border-gray-300 rounded-lg px-3 py-2" onChange={handleChange} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Bairro</label>
-                  <input type="text" name="neighborhood" className="w-full border border-gray-300 rounded-lg px-3 py-2" onChange={handleChange} />
+                  <input type="text" name="neighborhood" value={formData.neighborhood} className="w-full border border-gray-300 rounded-lg px-3 py-2" onChange={handleChange} />
                 </div>
                 <div>
                    <label className="block text-sm font-medium text-gray-700 mb-1">Quartos</label>
-                   <input type="number" name="bedrooms" min="0" className="w-full border border-gray-300 rounded-lg px-3 py-2" onChange={handleChange} />
+                   <input type="number" name="bedrooms" min="0" value={formData.bedrooms || ''} className="w-full border border-gray-300 rounded-lg px-3 py-2" onChange={handleChange} />
                 </div>
              </div>
           </div>
@@ -248,6 +272,7 @@ const StepForm: React.FC<StepFormProps> = ({ propertyType, onSubmit, onBack }) =
           <textarea
             name="description"
             rows={3}
+            value={formData.description}
             className="w-full border border-gray-300 rounded-lg px-4 py-2"
             placeholder="Observações extras..."
             onChange={handleChange}

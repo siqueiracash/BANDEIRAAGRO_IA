@@ -40,6 +40,11 @@ const App: React.FC = () => {
     setPropertyData(INITIAL_PROPERTY_DATA);
   };
 
+  const handleReview = () => {
+    // Retorna para o formulário mantendo os dados atuais
+    setCurrentStep(AppStep.FORM);
+  };
+
   const handleReset = () => {
     setCurrentStep(AppStep.SELECTION);
     setPropertyData(INITIAL_PROPERTY_DATA);
@@ -60,9 +65,23 @@ const App: React.FC = () => {
       showLoginButton={currentStep !== AppStep.DASHBOARD && currentStep !== AppStep.LOGIN}
     >
       {currentStep === AppStep.SELECTION && <StepSelection onSelect={handleTypeSelect} />}
-      {currentStep === AppStep.FORM && <StepForm propertyType={propertyData.type} onSubmit={handleFormSubmit} onBack={handleBackToSelection} />}
+      {currentStep === AppStep.FORM && (
+        <StepForm 
+          propertyType={propertyData.type} 
+          initialData={propertyData}
+          onSubmit={handleFormSubmit} 
+          onBack={handleBackToSelection} 
+        />
+      )}
       {currentStep === AppStep.LOADING && <LoadingScreen />}
-      {currentStep === AppStep.RESULT && valuationResult && <ReportScreen data={valuationResult} property={propertyData} onReset={handleReset} />}
+      {currentStep === AppStep.RESULT && valuationResult && (
+        <ReportScreen 
+          data={valuationResult} 
+          property={propertyData} 
+          onReset={handleReset} 
+          onReview={handleReview}
+        />
+      )}
       
       {/* Telas Administrativas */}
       {currentStep === AppStep.LOGIN && <LoginScreen onLoginSuccess={handleLoginSuccess} onBack={handleBackToSelection} />}
