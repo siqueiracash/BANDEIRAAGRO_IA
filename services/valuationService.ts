@@ -316,6 +316,17 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
   const fmtDec = (v: number, d = 2) => v.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
   const currentDate = new Date().toLocaleDateString('pt-BR');
 
+  // --- PAGINAÇÃO DE AMOSTRAS (ANEXO 01) ---
+  const samplesPerPage = 2;
+  const sampleChunks = [];
+  for (let i = 0; i < samples.length; i += samplesPerPage) {
+    sampleChunks.push({
+      chunk: samples.slice(i, i + samplesPerPage),
+      index: i,
+      pageIndex: Math.floor(i / samplesPerPage)
+    });
+  }
+
   const reportText = `
     <!-- CAPA -->
     <div class="report-cover flex flex-col items-center justify-center min-h-[1000px] text-center p-10 bg-white relative">
@@ -442,7 +453,12 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
             </p>
          </div>
        </div>
+    </div>
 
+    <div class="page-break"></div>
+
+    <!-- 9.4 VALOR DO IMÓVEL PARA LIQUIDAÇÃO FORÇADA -->
+    <div class="report-section p-8 text-justify">
        <div class="mb-8">
           <h3 class="text-lg font-serif font-bold text-gray-800 mb-4">9.4 VALOR DO IMÓVEL PARA LIQUIDAÇÃO FORÇADA</h3>
           <p class="text-gray-700 mb-2">
@@ -455,63 +471,72 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
              <strong>Tempo de Absorção:</strong> Estimado em <strong>24 meses</strong> para imóveis análogos.
           </p>
           
-          <div class="bg-gray-100 p-4 rounded border border-gray-300 text-center">
+          <div class="bg-gray-100 p-4 rounded border border-gray-300 text-center max-w-lg mx-auto">
              <p class="font-bold text-gray-800 mb-2">Fórmula de Deságio</p>
              <p class="font-mono text-sm">Valor Liquidação = Valor Mercado × (1 / (1 + 0,0151)^24)</p>
              <p class="font-mono text-sm mt-1">Fator = ${fmtDec(liquidityFactor, 4)}</p>
           </div>
           
-          <div class="mt-4 text-center">
-             <p class="text-gray-800">Valor para Liquidação Forçada:</p>
-             <p class="text-2xl font-bold text-gray-900">${fmtBRL(liquidationValue)}</p>
+          <div class="mt-8 text-center">
+             <p class="text-gray-800 text-lg">Valor para Liquidação Forçada:</p>
+             <p class="text-3xl font-bold text-gray-900 mt-2">${fmtBRL(liquidationValue)}</p>
           </div>
        </div>
     </div>
 
     <div class="page-break"></div>
 
-    <!-- ANEXO 01 - FICHAS DE PESQUISA -->
-    <div class="report-section p-8">
-       <h2 class="text-2xl font-serif font-bold text-gray-800 text-center uppercase mb-10">11 - ANEXO Nº 01<br/><span class="text-lg font-normal">FICHAS DE PESQUISA</span></h2>
-       
-       <div class="space-y-8">
-          ${samples.map((s, i) => `
-            <div class="border border-gray-400 rounded-lg overflow-hidden break-inside-avoid">
-                <div class="bg-green-700 text-white p-2 font-bold flex justify-between">
-                    <span>Item #${i + 1}</span>
-                    <span>${s.city} - ${s.state}</span>
-                    <span>Oferta (0,90)</span>
-                </div>
-                <div class="grid grid-cols-2 text-sm">
-                    <div class="p-3 border-r border-b border-gray-300">
-                        <span class="font-bold text-green-800">Localização:</span> ${s.city}
-                    </div>
-                    <div class="p-3 border-b border-gray-300">
-                        <span class="font-bold text-green-800">Fonte:</span> ${s.source || 'Pesquisa de Mercado'}
-                    </div>
-                    <div class="p-3 border-r border-b border-gray-300">
-                         <span class="font-bold text-green-800">Área Total:</span> ${fmtDec(s.areaTotal)} ${unitStr}
-                    </div>
-                    <div class="p-3 border-b border-gray-300">
-                        <span class="font-bold text-green-800">Valor Total:</span> ${fmtBRL(s.price)}
-                    </div>
-                    <div class="p-3 border-r border-gray-300 bg-gray-50">
-                        <span class="font-bold text-green-800">Descrição:</span><br/>
-                        ${s.title || 'Imóvel Rural'}
-                    </div>
-                    <div class="p-3 bg-gray-50">
-                        <span class="font-bold text-green-800">Características:</span><br/>
-                        ${isRural ? 
-                          `Capacidade: ${s.landCapability || '-'}<br/>Acesso: ${s.access || '-'}<br/>Topografia: ${s.topography || '-'}` 
-                          : 
-                          `Tipo: ${s.urbanSubType}<br/>Bairro: ${s.neighborhood || '-'}`
-                        }
-                    </div>
-                </div>
-            </div>
-          `).join('')}
-       </div>
-    </div>
+    <!-- ANEXO 01 - FICHAS DE PESQUISA (PAGINADO) -->
+    ${sampleChunks.map((chunkData) => `
+      ${chunkData.pageIndex > 0 ? '<div class="page-break"></div>' : ''}
+      <div class="report-section p-8">
+         <h2 class="text-2xl font-serif font-bold text-gray-800 text-center uppercase mb-10">
+            ${chunkData.pageIndex === 0 ? '11 - ANEXO Nº 01<br/><span class="text-lg font-normal">FICHAS DE PESQUISA</span>' : '<span class="text-lg font-normal">FICHAS DE PESQUISA (Continuação)</span>'}
+         </h2>
+         
+         <div class="space-y-8">
+            ${chunkData.chunk.map((s, i) => `
+              <div class="border border-gray-400 rounded-lg overflow-hidden break-inside-avoid shadow-sm">
+                  <div class="bg-green-700 text-white p-3 font-bold flex justify-between items-center">
+                      <span class="bg-green-800 px-2 py-1 rounded text-xs uppercase">Amostra #${chunkData.index + i + 1}</span>
+                      <span>${s.city} - ${s.state}</span>
+                      <span class="text-xs bg-green-600 px-2 py-1 rounded">Oferta (0,90)</span>
+                  </div>
+                  <div class="grid grid-cols-2 text-sm">
+                      <div class="p-3 border-r border-b border-gray-300 bg-gray-50">
+                          <span class="font-bold text-green-800 block text-xs uppercase mb-1">Localização</span> ${s.city}
+                      </div>
+                      <div class="p-3 border-b border-gray-300 bg-gray-50">
+                          <span class="font-bold text-green-800 block text-xs uppercase mb-1">Fonte</span> ${s.source || 'Pesquisa de Mercado'}
+                      </div>
+                      <div class="p-3 border-r border-b border-gray-300">
+                           <span class="font-bold text-green-800 block text-xs uppercase mb-1">Área Total</span> ${fmtDec(s.areaTotal)} ${unitStr}
+                      </div>
+                      <div class="p-3 border-b border-gray-300">
+                          <span class="font-bold text-green-800 block text-xs uppercase mb-1">Valor Total</span> ${fmtBRL(s.price)}
+                      </div>
+                      <div class="p-3 border-r border-gray-300">
+                          <span class="font-bold text-green-800 block text-xs uppercase mb-1">Descrição</span>
+                          ${s.title || 'Imóvel Rural'}
+                      </div>
+                      <div class="p-3">
+                          <span class="font-bold text-green-800 block text-xs uppercase mb-1">Características</span>
+                          ${isRural ? 
+                            `<div class="space-y-1 text-xs text-gray-600">
+                               <div>Cap: <strong>${s.landCapability || '-'}</strong></div>
+                               <div>Acesso: <strong>${s.access || '-'}</strong></div>
+                               <div>Topo: <strong>${s.topography || '-'}</strong></div>
+                            </div>` 
+                            : 
+                            `Tipo: ${s.urbanSubType}<br/>Bairro: ${s.neighborhood || '-'}`
+                          }
+                      </div>
+                  </div>
+              </div>
+            `).join('')}
+         </div>
+      </div>
+    `).join('')}
 
     <div class="page-break"></div>
 
