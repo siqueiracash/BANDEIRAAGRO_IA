@@ -2,16 +2,18 @@ import { PropertyData, ValuationResult, PropertyType } from "../types";
 import { filterSamples } from "./storageService";
 
 export const generateManualValuation = async (data: PropertyData): Promise<ValuationResult> => {
-  // Simula tempo de processamento
-  await new Promise(resolve => setTimeout(resolve, 800));
+  // Simula tempo de processamento UI (opcional)
+  await new Promise(resolve => setTimeout(resolve, 500));
 
-  // 1. Busca no banco de dados
+  // 1. Busca no banco de dados (AGORA ASSÍNCRONO)
   const subType = data.type === PropertyType.URBAN ? data.urbanSubType : data.ruralActivity;
-  let samples = filterSamples(data.type, data.city, data.state, subType);
+  
+  // Tenta filtro exato
+  let samples = await filterSamples(data.type, data.city, data.state, subType);
 
-  // Se não achar exato, busca geral na cidade
+  // Se não achar exato (menos de 3), busca geral na cidade (sem filtrar subtipo)
   if (samples.length < 3) {
-    samples = filterSamples(data.type, data.city, data.state);
+    samples = await filterSamples(data.type, data.city, data.state);
   }
 
   const hasSamples = samples.length > 0;
@@ -46,7 +48,7 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
 ---
 
 ## 2. METODOLOGIA (MÉTODO COMPARATIVO)
-Foi realizada pesquisa no Banco de Dados Interno da Bandeira Agro na região de **${data.city}/${data.state}**.
+Foi realizada pesquisa no Banco de Dados da Bandeira Agro na região de **${data.city}/${data.state}**.
 
 * **Amostras Encontradas:** ${samples.length}
 
@@ -61,7 +63,7 @@ Foi realizada pesquisa no Banco de Dados Interno da Bandeira Agro na região de 
 
 # **${hasSamples ? fmtVal : 'INCONCLUSIVO (Sem amostras)'}**
 
-${!hasSamples ? '> **AVISO:** Cadastre amostras nesta região no Painel Administrativo.' : ''}
+${!hasSamples ? '> **AVISO:** Nenhuma amostra encontrada no banco de dados para esta região. Cadastre amostras no Painel Administrativo.' : ''}
   `;
 
   return {

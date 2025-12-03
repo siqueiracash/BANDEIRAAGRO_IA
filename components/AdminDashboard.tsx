@@ -9,6 +9,7 @@ interface AdminDashboardProps {
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [samples, setSamples] = useState<MarketSample[]>([]);
+  const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'LIST' | 'ADD'>('LIST');
   
   // Estado para controlar Edição
@@ -28,7 +29,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
   useEffect(() => { load(); }, []);
 
-  const load = () => setSamples(getSamples());
+  const load = async () => {
+    setLoading(true);
+    const data = await getSamples();
+    setSamples(data);
+    setLoading(false);
+  };
 
   // Formata número para moeda BRL (ex: 1000 -> 1.000,00)
   const formatCurrency = (value: number | undefined) => {
@@ -80,12 +86,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     setActiveTab('ADD');
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
     
     // Validações Gerais
     if (!form.city || !form.state || !form.price || !form.areaTotal) {
       alert('Preencha os campos obrigatórios gerais (Cidade, Estado, Valor, Área Total).');
+      setLoading(false);
       return;
     }
 
@@ -93,6 +101,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     if (form.type === PropertyType.URBAN) {
       if (!form.address || !form.neighborhood) {
         alert('Para imóveis urbanos, Endereço e Bairro são obrigatórios.');
+        setLoading(false);
         return;
       }
     }
@@ -114,23 +123,35 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       parking: form.parking ? Number(form.parking) : undefined,
     } as any;
 
-    if (editingId) {
-      // UPDATE
-      updateSample({ ...sampleData, id: editingId });
-      alert('Amostra atualizada com sucesso!');
-    } else {
-      // CREATE
-      saveSample(sampleData);
-      alert('Amostra salva com sucesso!');
+    try {
+      if (editingId) {
+        // UPDATE
+        await updateSample({ ...sampleData, id: editingId });
+        alert('Amostra atualizada com sucesso!');
+      } else {
+        // CREATE
+        await saveSample(sampleData);
+        alert('Amostra salva com sucesso!');
+      }
+      
+      resetForm();
+      setActiveTab('LIST');
+      await load();
+    } catch (error) {
+      console.error(error);
+      alert('Erro ao salvar.');
+    } finally {
+      setLoading(false);
     }
-    
-    resetForm();
-    setActiveTab('LIST');
-    load();
   };
 
-  const remove = (id: string) => {
-    if (confirm('Excluir esta amostra permanentemente?')) { deleteSample(id); load(); }
+  const remove = async (id: string) => {
+    if (confirm('Excluir esta amostra permanentemente?')) { 
+      setLoading(true);
+      await deleteSample(id); 
+      await load(); 
+      setLoading(false);
+    }
   };
 
   const handleTabChange = (tab: 'LIST' | 'ADD') => {
@@ -164,7 +185,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           </button>
         </div>
 
-        {activeTab === 'LIST' ? (
+        {loading && (
+          <div className="text-center py-10">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-agro-600"></div>
+            <p className="mt-2 text-gray-500">Sincronizando com Banco de Dados...</p>
+          </div>
+        )}
+
+        {!loading && activeTab === 'LIST' ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left border-collapse">
               <thead>
@@ -219,12 +247,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                   </tr>
                 ))}
                 {samples.length === 0 && (
-                  <tr><td colSpan={5} className="p-8 text-center text-gray-400 italic">Nenhuma amostra cadastrada.</td></tr>
+                  <tr><td colSpan={5} className="p-8 text-center text-gray-400 italic">Nenhuma amostra encontrada no banco de dados.</td></tr>
                 )}
               </tbody>
             </table>
           </div>
-        ) : (
+        ) : !loading && activeTab === 'ADD' ? (
           <form onSubmit={handleSave} className="space-y-6 animate-fade-in">
              <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-gray-800">
@@ -283,12 +311,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
                 <div className="md:col-span-2">
                    <label className="block text-sm font-bold text-gray-700 mb-1">Endereço / Localização *</label>
-                   <input name="address" value={form.address} onChange={handleChange} className="w-full border p-2 rounded" placeholder="Rua, Número..." required />
+                   <input name="address" value={form.address || ''} onChange={handleChange} className="w-full border p-2 rounded" placeholder="Rua, Número..." required />
                 </div>
 
                 <div className="md:col-span-2">
                    <label className="block text-sm font-bold text-gray-700 mb-1">Bairro *</label>
-                   <input name="neighborhood" value={form.neighborhood} onChange={handleChange} className="w-full border p-2 rounded" placeholder="Bairro" required />
+                   <input name="neighborhood" value={form.neighborhood || ''} onChange={handleChange} className="w-full border p-2 rounded" placeholder="Bairro" required />
                 </div>
 
                 <div>
@@ -364,7 +392,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
                 <div className="md:col-span-2">
                    <label className="block text-sm font-bold text-gray-700 mb-1">Endereço / Localização</label>
-                   <input name="address" value={form.address} onChange={handleChange} className="w-full border p-2 rounded" placeholder="Estrada, km..." />
+                   <input name="address" value={form.address || ''} onChange={handleChange} className="w-full border p-2 rounded" placeholder="Estrada, km..." />
                 </div>
 
                 <div>
@@ -476,7 +504,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               </button>
             </div>
           </form>
-        )}
+        ) : null}
       </div>
     </div>
   );

@@ -1,113 +1,167 @@
 import { MarketSample, PropertyType } from "../types";
+import { supabase } from "./supabaseClient";
 
+// Nome da tabela no Supabase
+const TABLE_NAME = 'samples';
+
+// --- FALLBACK LOCALSTORAGE (Caso o Supabase não esteja configurado) ---
 const STORAGE_KEY = 'BANDEIRA_AGRO_DB';
 
-// Dados de exemplo para iniciar o sistema
-const SEED_DATA: MarketSample[] = [
-  {
-    id: '1',
-    type: PropertyType.URBAN,
-    title: 'Amostra Base Urbana',
-    address: 'Rua Exemplo, 100',
-    city: 'Ribeirão Preto',
-    state: 'SP',
-    neighborhood: 'Centro',
-    price: 500000,
-    areaTotal: 100,
-    areaBuilt: 100,
-    pricePerUnit: 5000,
-    date: '2023-10-01',
-    source: 'Imobiliária Local',
-    urbanSubType: 'Apartamento'
-  },
-  {
-    id: '2',
-    type: PropertyType.RURAL,
-    title: 'Amostra Base Rural',
-    address: 'Estrada Rural km 10',
-    city: 'Ribeirão Preto',
-    state: 'SP',
-    price: 2000000,
-    areaTotal: 50,
-    pricePerUnit: 40000,
-    date: '2023-10-05',
-    source: 'Portal Rural',
-    ruralActivity: 'Lavoura'
-  }
-];
-
-export const getSamples = (): MarketSample[] => {
+const getLocalSamples = (): MarketSample[] => {
   const stored = localStorage.getItem(STORAGE_KEY);
-  if (!stored) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(SEED_DATA));
-    return SEED_DATA;
+  return stored ? JSON.parse(stored) : [];
+};
+// --------------------------------------------------------------------
+
+export const getSamples = async (): Promise<MarketSample[]> => {
+  if (!supabase) {
+    console.warn("Supabase não configurado. Usando LocalStorage.");
+    return getLocalSamples();
   }
-  
-  try {
-    return JSON.parse(stored);
-  } catch (error) {
-    console.error("Erro ao ler banco de dados local. Resetando.", error);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(SEED_DATA));
-    return SEED_DATA;
+
+  const { data, error } = await supabase
+    .from(TABLE_NAME)
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error("Erro ao buscar amostras:", error);
+    return [];
   }
+
+  return data as MarketSample[];
 };
 
-export const saveSample = (sample: Omit<MarketSample, 'id' | 'pricePerUnit'>) => {
-  const samples = getSamples();
-  
+export const saveSample = async (sample: Omit<MarketSample, 'id' | 'pricePerUnit'>): Promise<MarketSample | null> => {
   const divisor = sample.areaBuilt && sample.areaBuilt > 0 ? sample.areaBuilt : sample.areaTotal;
   const pricePerUnit = sample.price / (divisor || 1);
 
-  const newSample: MarketSample = {
+  // Prepara o objeto, removendo campos undefined para o Supabase não reclamar
+  const newSamplePayload = {
     ...sample,
-    id: Date.now().toString(),
+    pricePerUnit,
+    // Garante que campos opcionais sejam null se undefined
+    neighborhood: sample.neighborhood || null,
+    address: sample.address || null,
+    urbanSubType: sample.urbanSubType || null,
+    ruralActivity: sample.ruralActivity || null,
+    // Adiciona data de criação se a tabela tiver created_at
+  };
+
+  if (!supabase) {
+    const localSample = { ...newSamplePayload, id: Date.now().toString() };
+    const current = getLocalSamples();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([localSample, ...current]));
+    return localSample as MarketSample;
+  }
+
+  const { data, error } = await supabase
+    .from(TABLE_NAME)
+    .insert([newSamplePayload])
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Erro ao salvar amostra:", error);
+    alert("Erro ao salvar no banco de dados.");
+    return null;
+  }
+
+  return data as MarketSample;
+};
+
+export const updateSample = async (sample: MarketSample): Promise<MarketSample | null> => {
+  const divisor = sample.areaBuilt && sample.areaBuilt > 0 ? sample.areaBuilt : sample.areaTotal;
+  const pricePerUnit = sample.price / (divisor || 1);
+
+  const updatePayload = {
+    ...sample,
     pricePerUnit
   };
 
-  const updated = [newSample, ...samples];
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-  return newSample;
-};
-
-// FUNÇÃO DE ATUALIZAÇÃO (EDITAR)
-export const updateSample = (sample: MarketSample) => {
-  const samples = getSamples();
-  const index = samples.findIndex(s => s.id === sample.id);
-
-  if (index !== -1) {
-    const divisor = sample.areaBuilt && sample.areaBuilt > 0 ? sample.areaBuilt : sample.areaTotal;
-    const pricePerUnit = sample.price / (divisor || 1);
-
-    const updatedSample = {
-      ...sample,
-      pricePerUnit
-    };
-
-    samples[index] = updatedSample;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(samples));
-    return updatedSample;
-  }
-  return null;
-};
-
-export const deleteSample = (id: string) => {
-  const samples = getSamples();
-  const updated = samples.filter(s => s.id !== id);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-};
-
-export const filterSamples = (type: PropertyType, city: string, state: string, subTypeOrActivity?: string): MarketSample[] => {
-  const samples = getSamples();
-  return samples.filter(s => {
-    const matchType = s.type === type;
-    const matchLoc = s.city.toLowerCase().trim() === city.toLowerCase().trim() && s.state === state;
-    
-    let matchSub = true;
-    if (subTypeOrActivity) {
-      if (type === PropertyType.URBAN && s.urbanSubType) matchSub = s.urbanSubType === subTypeOrActivity;
-      if (type === PropertyType.RURAL && s.ruralActivity) matchSub = s.ruralActivity === subTypeOrActivity;
+  if (!supabase) {
+    const current = getLocalSamples();
+    const index = current.findIndex(s => s.id === sample.id);
+    if (index !== -1) {
+      current[index] = updatePayload;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
+      return updatePayload;
     }
-    
-    return matchType && matchLoc && matchSub;
-  });
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from(TABLE_NAME)
+    .update(updatePayload)
+    .eq('id', sample.id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Erro ao atualizar amostra:", error);
+    return null;
+  }
+
+  return data as MarketSample;
+};
+
+export const deleteSample = async (id: string): Promise<void> => {
+  if (!supabase) {
+    const current = getLocalSamples();
+    const updated = current.filter(s => s.id !== id);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    return;
+  }
+
+  const { error } = await supabase
+    .from(TABLE_NAME)
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error("Erro ao deletar amostra:", error);
+  }
+};
+
+export const filterSamples = async (type: PropertyType, city: string, state: string, subTypeOrActivity?: string): Promise<MarketSample[]> => {
+  // Busca todas e filtra na memória (mais simples para lidar com campos JSON opcionais variáveis)
+  // Ou faz query direta. Vamos fazer query direta para performance.
+  
+  if (!supabase) {
+    const samples = getLocalSamples();
+    return samples.filter(s => {
+      const matchType = s.type === type;
+      const matchLoc = s.city.toLowerCase().trim() === city.toLowerCase().trim() && s.state === state;
+      let matchSub = true;
+      if (subTypeOrActivity) {
+        if (type === PropertyType.URBAN && s.urbanSubType) matchSub = s.urbanSubType === subTypeOrActivity;
+        if (type === PropertyType.RURAL && s.ruralActivity) matchSub = s.ruralActivity === subTypeOrActivity;
+      }
+      return matchType && matchLoc && matchSub;
+    });
+  }
+
+  let query = supabase
+    .from(TABLE_NAME)
+    .select('*')
+    .eq('type', type)
+    .ilike('city', city) // Case insensitive
+    .eq('state', state);
+
+  if (subTypeOrActivity) {
+    if (type === PropertyType.URBAN) {
+      query = query.eq('urbanSubType', subTypeOrActivity);
+    } else {
+      query = query.eq('ruralActivity', subTypeOrActivity);
+    }
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error("Erro ao filtrar amostras:", error);
+    return [];
+  }
+
+  return data as MarketSample[];
 };
