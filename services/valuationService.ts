@@ -339,11 +339,7 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
       <div class="w-full max-w-3xl mx-auto text-left space-y-4 border-t-2 border-gray-800 pt-8 mb-20">
         <div class="grid grid-cols-3 gap-4 border-b border-gray-200 pb-2">
             <span class="font-serif font-bold text-gray-800 uppercase text-sm">SOLICITANTE</span>
-            <span class="col-span-2 text-gray-700 uppercase font-semibold">CLIENTE BANDEIRA AGRO</span>
-        </div>
-        <div class="grid grid-cols-3 gap-4 border-b border-gray-200 pb-2">
-            <span class="font-serif font-bold text-gray-800 uppercase text-sm">PROPRIETÁRIO</span>
-            <span class="col-span-2 text-gray-700 uppercase font-semibold">A QUEM DE DIREITO</span>
+            <span class="col-span-2 text-gray-700 uppercase font-semibold">BANDEIRA AGRO</span>
         </div>
         <div class="grid grid-cols-3 gap-4 border-b border-gray-200 pb-2">
             <span class="font-serif font-bold text-gray-800 uppercase text-sm">OBJETIVO DA AVALIAÇÃO</span>
@@ -608,6 +604,34 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
                   <tr class="bg-gray-100"><td class="p-2 font-bold">Amplitude</td><td class="p-2 text-right">${fmtBRL(maxInterval - minInterval)}</td></tr>
               </table>
           </div>
+       </div>
+    </div>
+    
+    <div class="page-break"></div>
+    
+    <!-- RESPONSABILIDADE E LIMITAÇÕES -->
+    <div class="report-section p-8 text-justify">
+       <h2 class="text-xl font-serif font-bold text-gray-800 text-center uppercase mb-10">RESPONSABILIDADE E LIMITAÇÕES</h2>
+       
+       <p class="mb-4 text-gray-700">
+         Este Laudo de Avaliação foi produzido com base em informações fornecidas pela contratante/usuário do sistema, incluindo a documentação do imóvel objeto da análise, características físicas e localizacionais, as quais são admitidas como verdadeiras para fins de cálculo.
+       </p>
+       
+       <p class="mb-4 text-gray-700">
+         Ressalva-se que o presente trabalho foi realizado seguindo os preceitos metodológicos da ABNT NBR 14653-3 (Imóveis Rurais) e/ou NBR 14653-2 (Imóveis Urbanos), contudo, enquadra-se na modalidade <strong>"Avaliação Expedita" (Desktop Valuation)</strong>, sendo realizado <strong>sem vistoria <em>in loco</em></strong> ao imóvel avaliando.
+       </p>
+       
+       <p class="mb-4 text-gray-700">
+         A fundamentação de valores utilizou como base o <strong>Banco de Dados de Amostras da Bandeira Agro</strong> e dados de mercado disponíveis publicamente. A Bandeira Agro não se responsabiliza por divergências entre as informações inseridas no sistema e a realidade fática do imóvel que apenas uma inspeção presencial detalhada poderia constatar (como estado real de conservação das benfeitorias, invasões, pragas, passivos ambientais ou discrepâncias de área física vs. documental).
+       </p>
+       
+       <p class="mb-4 text-gray-700">
+         A utilização deste Laudo de Avaliação é restrita à finalidade de estimativa de valor de mercado e liquidação forçada para fins gerenciais, não devendo ser utilizado como único instrumento para garantias bancárias de alto risco sem a devida validação presencial complementar, se exigida pelas normas internas da instituição financeira.
+       </p>
+       
+       <div class="mt-20 text-center">
+          <p class="text-sm text-gray-500">Documento gerado eletronicamente pela plataforma Bandeira Agro.</p>
+          <p class="text-sm text-gray-500">${currentDate}</p>
        </div>
     </div>
   `;

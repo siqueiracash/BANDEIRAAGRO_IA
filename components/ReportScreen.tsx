@@ -25,11 +25,12 @@ const ReportScreen: React.FC<ReportScreenProps> = ({ data, onReset }) => {
           /* Garante que o container ocupe a largura total */
           .report-container { box-shadow: none !important; padding: 0 !important; margin: 0 !important; max-width: 100% !important; }
           
-          /* Ajuste da Capa para preencher folha */
-          .report-cover { height: 297mm; width: 100%; padding-top: 50mm; }
+          /* Ajuste da Capa para preencher folha com Margens ABNT: Sup/Esq 3cm, Inf/Dir 2cm */
+          /* Padding order: Top Right Bottom Left */
+          .report-cover { height: 297mm; width: 210mm; padding: 30mm 20mm 20mm 30mm; }
           
-          /* Ajuste das Seções internas */
-          .report-section { padding: 20mm; min-height: 297mm; }
+          /* Ajuste das Seções internas com Margens ABNT */
+          .report-section { padding: 30mm 20mm 20mm 30mm; min-height: 297mm; width: 210mm; }
         }
 
         /* Estilos Web */
