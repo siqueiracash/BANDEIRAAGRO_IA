@@ -496,7 +496,7 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
     <div class="page-break"></div>
 
     <!-- ANEXO 2 -->
-    <div class="report-section p-8">
+    <div class="report-section p-8" style="min-height: auto;">
       <h3 class="text-xl font-serif font-bold text-gray-900 mb-6 border-b border-gray-300 pb-2">ANEXO 02 - MEMÓRIA DE CÁLCULO</h3>
       <p class="text-sm text-gray-600 mb-6">Demonstrativo da Homogeneização dos Valores Unitários.</p>
 
