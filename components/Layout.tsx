@@ -12,7 +12,9 @@ const Layout: React.FC<LayoutProps> = ({ children, onLoginClick, showLoginButton
       <header className="bg-agro-900 text-white shadow-lg sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.location.reload()}>
-            <span className="font-serif text-2xl font-bold tracking-wide">BANDEIRA AGRO</span>
+            <span className="font-serif text-2xl font-bold tracking-wide">
+              BANDEIRA <span className="text-orange-500">AGRO</span>
+            </span>
           </div>
           <div className="flex items-center gap-4">
              {showLoginButton && (
