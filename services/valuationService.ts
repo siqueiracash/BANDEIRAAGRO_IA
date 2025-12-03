@@ -280,6 +280,9 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
             </div>
           </div>
 
+          <!-- ESPAÇAMENTO ADICIONADO PARA EMPURRAR O QUADRO DE VALORES -->
+          <div class="h-32"></div>
+
           <div class="bg-gray-50 p-6 rounded-lg border border-gray-200">
             <h3 class="text-lg font-serif font-bold text-center text-gray-800 mb-6 uppercase">Resumo de Valores</h3>
             
