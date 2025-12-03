@@ -1,23 +1,63 @@
-import { PropertyData, ValuationResult, PropertyType } from "../types";
+import { PropertyData, ValuationResult, PropertyType, MarketSample } from "../types";
 import { filterSamples, getSamplesByCities } from "./storageService";
 import { getNeighboringCities } from "./geminiService";
 
+// --- TABELAS DE COEFICIENTES EMPÍRICOS (NBR 14653-3) ---
+// Estes índices servem para homogeneizar as amostras em relação ao paradigma (imóvel avaliando).
+// Valores maiores indicam características melhores.
+
+const COEF_TOPOGRAPHY: Record<string, number> = {
+  'Plano': 1.00,
+  'Leve Ondulado': 0.90,
+  'Ondulado': 0.80,
+  'Montanhoso': 0.60,
+  'DEFAULT': 1.00
+};
+
+const COEF_ACCESS: Record<string, number> = {
+  'Ótimo': 1.10, // Asfalto/Próximo
+  'Muito bom': 1.05,
+  'Bom': 1.00, // Padrão
+  'Regular': 0.90,
+  'Mau': 0.80,
+  'Péssimo': 0.70,
+  'Encravada': 0.50,
+  'DEFAULT': 1.00
+};
+
+const COEF_SURFACE: Record<string, number> = {
+  'Seca': 1.00,
+  'Alagadiça': 0.70,
+  'Brejosa ou Pantanosa': 0.50,
+  'Permanente Alagada': 0.30,
+  'DEFAULT': 1.00
+};
+
+// Função auxiliar para pegar coeficiente com fallback seguro
+const getCoef = (table: Record<string, number>, key: string | undefined) => {
+  if (!key) return table['DEFAULT'];
+  // Tenta encontrar a chave exata ou parcial
+  const found = Object.keys(table).find(k => k.toLowerCase() === key.toLowerCase());
+  return found ? table[found] : table['DEFAULT'];
+};
+
 export const generateManualValuation = async (data: PropertyData): Promise<ValuationResult> => {
-  // Simula tempo de processamento UI (opcional)
+  // Simula tempo de processamento UI
   await new Promise(resolve => setTimeout(resolve, 500));
 
-  // 1. Busca no banco de dados
-  const subType = data.type === PropertyType.URBAN ? data.urbanSubType : data.ruralActivity;
+  const isRural = data.type === PropertyType.RURAL;
+  const subType = isRural ? data.ruralActivity : data.urbanSubType;
   let searchScope = `região de **${data.city}/${data.state}**`;
   const MIN_SAMPLES = 5;
+  
+  // --- 1. COLETA DE DADOS (Lógica de busca hierárquica) ---
   
   // A: Tenta filtro exato (Cidade + Tipo + Subtipo/Atividade)
   let samples = await filterSamples(data.type, data.city, data.state, subType);
 
-  // Se não achar exato (menos de 5), busca geral na cidade (sem filtrar subtipo)
+  // B: Busca geral na cidade
   if (samples.length < MIN_SAMPLES) {
     const generalCitySamples = await filterSamples(data.type, data.city, data.state);
-    // Mescla evitando duplicatas (por ID)
     const existingIds = new Set(samples.map(s => s.id));
     for (const gs of generalCitySamples) {
       if (!existingIds.has(gs.id)) {
@@ -27,25 +67,19 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
     }
   }
 
-  // --- LÓGICA RURAL/URBANA REGIONAL (CIDADES VIZINHAS) ---
-  // Se ainda < 5, busca nas CIDADES VIZINHAS
+  // C: Busca Regional (Cidades Vizinhas)
   if (samples.length < MIN_SAMPLES) {
     try {
-      // Pergunta para IA quais são as cidades vizinhas
       const neighborCities = await getNeighboringCities(data.city, data.state);
-      
       if (neighborCities.length > 0) {
-        // Busca no banco nessas cidades
         const neighborSamples = await getSamplesByCities(neighborCities, data.state, data.type, subType);
-        
-        // Se ainda pouco, busca geral nessas cidades
         let neighborSamplesGeneral: any[] = [];
+        
         if (neighborSamples.length < (MIN_SAMPLES - samples.length)) {
            neighborSamplesGeneral = await getSamplesByCities(neighborCities, data.state, data.type);
         }
 
         const allNeighbors = [...neighborSamples, ...neighborSamplesGeneral];
-        
         const existingIds = new Set(samples.map(s => s.id));
         let addedCount = 0;
         
@@ -66,16 +100,11 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
     }
   }
 
-  // --- LÓGICA RURAL ESTADUAL (FALLBACK FINAL) ---
-  // Se ainda for insuficiente E for Imóvel Rural, busca no ESTADO todo
-  if (samples.length < MIN_SAMPLES && data.type === PropertyType.RURAL) {
-    // Tenta Estado + Atividade (ex: Estado SP + Lavoura)
+  // D: Busca Estadual (Apenas Rural)
+  if (samples.length < MIN_SAMPLES && isRural) {
     let stateSamples = await filterSamples(data.type, '', data.state, subType);
-
-    // Se ainda insuficiente, busca Estado Geral (ex: Estado SP + Qualquer Rural)
     if (stateSamples.length < MIN_SAMPLES) {
       const generalStateSamples = await filterSamples(data.type, '', data.state);
-       // Mescla
        const stateIds = new Set(stateSamples.map(s => s.id));
        for (const gs of generalStateSamples) {
          if (!stateIds.has(gs.id)) {
@@ -85,12 +114,10 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
        }
     }
 
-    // Mescla com o que já temos
     const existingIds = new Set(samples.map(s => s.id));
     let usedState = false;
 
     for (const ss of stateSamples) {
-       // Só adiciona se precisar preencher até atingir um número razoável ou se não tiver nada
        if (samples.length < MIN_SAMPLES * 2) { 
          if (!existingIds.has(ss.id)) {
             samples.push(ss);
@@ -106,84 +133,164 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
   }
 
   const hasSamples = samples.length > 0;
-  const unitStr = data.type === PropertyType.URBAN ? 'm²' : 'ha';
-  
-  let avgRawUnitPrice = 0;
-  let avgAdjustedUnitPrice = 0;
-  let estimatedValue = 0;
+  const unitStr = isRural ? 'ha' : 'm²';
   const OFFER_FACTOR = 0.90; // Fator de Oferta (-10%)
 
-  if (hasSamples) {
-    // 1. Média Unitária das Ofertas (Bruta)
-    const sumUnit = samples.reduce((acc, curr) => acc + curr.pricePerUnit, 0);
-    avgRawUnitPrice = sumUnit / samples.length;
-    
-    // 2. Aplicação do Fator de Oferta (Homogeneização)
-    avgAdjustedUnitPrice = avgRawUnitPrice * OFFER_FACTOR;
+  // --- 2. CÁLCULOS E HOMOGENEIZAÇÃO (NBR 14653-3) ---
+  
+  let homogenizedSamples: any[] = [];
+  let sumHomogenizedUnit = 0;
 
-    // 3. Definição da Área de Referência para cálculo final
-    let refArea = data.areaTotal; // Padrão (especialmente para RURAL, onde Hectare manda)
-    
-    // Apenas para URBANO, se houver área construída, usamos ela como base (ex: apartamento)
-    // Para RURAL, mesmo que haja área construída (sede), o valor de referência do comparativo é por Hectare (Area Total).
-    if (data.type === PropertyType.URBAN && data.areaBuilt && data.areaBuilt > 0) {
-      refArea = data.areaBuilt;
-    }
-    
-    // 4. Cálculo Final
-    estimatedValue = avgAdjustedUnitPrice * refArea;
+  if (hasSamples) {
+    homogenizedSamples = samples.map(sample => {
+      let unitPrice = sample.pricePerUnit;
+      let factors: string[] = [];
+      let totalFactor = 1.0;
+
+      // 1. Fator Oferta (Sempre aplicado para trazer valor de oferta para valor de venda provável)
+      unitPrice = unitPrice * OFFER_FACTOR;
+      factors.push(`Oferta (0.90)`);
+
+      // 2. Fatores Físicos (Apenas RURAL aplica homogeneização detalhada neste modelo)
+      if (isRural) {
+        // Topografia
+        // Fórmula: Fator = Coef(Avaliado) / Coef(Amostra)
+        // Se a amostra não tiver dado, assumimos que é similar ao avaliado (Fator 1.0)
+        const coefSubjectTopo = getCoef(COEF_TOPOGRAPHY, data.topography);
+        const coefSampleTopo = sample.topography ? getCoef(COEF_TOPOGRAPHY, sample.topography) : coefSubjectTopo;
+        const factorTopo = coefSubjectTopo / coefSampleTopo;
+        
+        if (factorTopo !== 1.0) {
+          unitPrice = unitPrice * factorTopo;
+          factors.push(`Topografia (${factorTopo.toFixed(2)})`);
+        }
+
+        // Acesso
+        const coefSubjectAccess = getCoef(COEF_ACCESS, data.access);
+        const coefSampleAccess = sample.access ? getCoef(COEF_ACCESS, sample.access) : coefSubjectAccess;
+        const factorAccess = coefSubjectAccess / coefSampleAccess;
+
+        if (factorAccess !== 1.0) {
+          unitPrice = unitPrice * factorAccess;
+          factors.push(`Acesso (${factorAccess.toFixed(2)})`);
+        }
+
+        // Solo / Superfície
+        const coefSubjectSurf = getCoef(COEF_SURFACE, data.surface);
+        const coefSampleSurf = sample.surface ? getCoef(COEF_SURFACE, sample.surface) : coefSubjectSurf;
+        const factorSurf = coefSubjectSurf / coefSampleSurf;
+
+        if (factorSurf !== 1.0) {
+          unitPrice = unitPrice * factorSurf;
+          factors.push(`Solo (${factorSurf.toFixed(2)})`);
+        }
+      }
+
+      sumHomogenizedUnit += unitPrice;
+
+      return {
+        ...sample,
+        homogenizedUnitPrice: unitPrice,
+        appliedFactors: factors.join(', ')
+      };
+    });
   }
 
+  // Média Saneada (Homogeneizada)
+  const avgHomogenizedUnitPrice = hasSamples ? (sumHomogenizedUnit / homogenizedSamples.length) : 0;
+  
+  // Definição da Área de Referência
+  let refArea = data.areaTotal;
+  if (!isRural && data.areaBuilt && data.areaBuilt > 0) {
+    refArea = data.areaBuilt;
+  }
+
+  const estimatedValue = avgHomogenizedUnitPrice * refArea;
+
   const fmtVal = estimatedValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  const fmtAvgRaw = avgRawUnitPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  const fmtAvgAdj = avgAdjustedUnitPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const fmtAvg = avgHomogenizedUnitPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  // --- 3. GERAÇÃO DO TEXTO DO LAUDO (NBR 14653-3) ---
+
+  const ruralSpecifics = isRural ? `
+### 3. FATORES DE AVALIAÇÃO E CARACTERÍSTICAS FÍSICAS
+Conforme NBR 14653-3, foram considerados os seguintes aspectos físicos na homogeneização:
+
+* **Topografia:** ${data.topography || 'Não informado'} (Impacto na mecanização e manejo).
+* **Superfície/Solo:** ${data.surface || 'Não informado'} (Drenagem e capacidade de suporte).
+* **Acessibilidade:** ${data.access || 'Não informado'} (Logística de insumos e escoamento).
+* **Recursos Hídricos:** Considerado implicitamente no valor de mercado da região.
+
+### 4. BENFEITORIAS E INFRAESTRUTURA
+* **Construções/Instalações:** ${data.improvements || 'Não detalhado'}.
+* **Infraestrutura Produtiva:** A avaliação considera o estado de conservação e utilidade das benfeitorias para a atividade predominante (${data.ruralActivity}).
+
+### 5. CAPACIDADE PRODUTIVA E USO
+* **Atividade Predominante:** ${data.ruralActivity}.
+* **Ocupação do Solo:** ${data.occupation || 'Não informado'}.
+A região apresenta aptidão para atividades agropecuárias, influenciando diretamente a liquidez e o valor de mercado.
+
+### 6. ASPECTOS LEGAIS E AMBIENTAIS
+* **CAR (Cadastro Ambiental Rural):** ${data.carNumber ? `Informado (${data.carNumber})` : 'Não informado'}.
+* **Análise:** Pressupõe-se regularidade documental e ambiental para fins desta avaliação preliminar de mercado. Passivos ambientais ou restrições legais específicas requerem diligência jurídica aprofundada não escopada nesta avaliação automática.
+` : `
+### 3. CARACTERÍSTICAS DO IMÓVEL URBANO
+* **Padrão Construtivo:** ${data.urbanSubType}
+* **Conservação:** ${data.conservationState || 'Não informado'}
+* **Dependências:** ${data.bedrooms || 0} quartos, ${data.bathrooms || 0} banheiros.
+`;
 
   const reportText = `
-# LAUDO DE AVALIAÇÃO - BANDEIRA AGRO
-
+# LAUDO TÉCNICO DE AVALIAÇÃO - BANDEIRA AGRO
+**Norma Aplicável:** ${isRural ? 'ABNT NBR 14653-3 (Imóveis Rurais)' : 'ABNT NBR 14653-2 (Imóveis Urbanos)'}
 **Data:** ${new Date().toLocaleDateString()}
-**Natureza:** ${data.type}
 
 ---
 
-## 1. DADOS DO IMÓVEL
-* **Endereço:** ${data.address || 'N/A'}
-* **Cidade/UF:** ${data.city}/${data.state}
-* **Área Total:** ${data.areaTotal} ${data.type === PropertyType.RURAL ? 'ha' : 'm²'}
-* **Descrição:** ${data.description || '-'}
+## 1. DADOS DO IMÓVEL AVALIANDO
+* **Localização:** ${data.address || ''}, ${data.city}/${data.state}
+* **Área Total:** ${data.areaTotal} ${unitStr}
+* **Natureza:** ${data.type}
 
 ---
 
-## 2. METODOLOGIA (MÉTODO COMPARATIVO)
-Foi realizada pesquisa no Banco de Dados da Bandeira Agro com abrangência na ${searchScope}.
-Os valores de oferta coletados foram tratados estatisticamente conforme a norma ABNT NBR 14653.
+## 2. METODOLOGIA (MÉTODO COMPARATIVO DIRETO DE DADOS DE MERCADO)
+A avaliação foi realizada através da pesquisa de mercado de imóveis semelhantes, aplicando-se tratamento por fatores (Homogeneização) para equalizar as características entre as amostras e o imóvel avaliando.
 
-* **Amostras Utilizadas:** ${samples.length}
+**Abrangência da Pesquisa:** ${searchScope}.
+**Amostras Utilizadas:** ${samples.length} elementos comparáveis.
 
----
-
-## 3. CÁLCULOS E HOMOGENEIZAÇÃO
-
-O cálculo do valor de mercado partiu da média aritmética dos valores unitários das amostras, aplicando-se o **Fator de Oferta de 0,90** para ajuste ao valor provável de transação.
-
-* **Média Unitária (Oferta):** ${fmtAvgRaw} / ${unitStr}
-* **Fator de Oferta:** 0,90 (-10%)
-* **Média Unitária (Ajustada):** **${fmtAvgAdj} / ${unitStr}**
+${ruralSpecifics}
 
 ---
 
-## 4. CONCLUSÃO DE VALOR
+## ${isRural ? '7' : '4'}. CÁLCULOS E HOMOGENEIZAÇÃO
 
-Cálculo: ${fmtAvgAdj} x ${data.type === PropertyType.RURAL ? data.areaTotal : ((data.areaBuilt && data.areaBuilt > 0) ? data.areaBuilt : data.areaTotal)}
+Foi aplicado o **Fator de Oferta (0.90)** sobre todas as amostras para ajustar a elasticidade de negociação (pedida vs. fechamento).
+${isRural ? 'Adicionalmente, foram aplicados fatores de homogeneização para Topografia, Acesso e Solo quando as informações estavam disponíveis nas amostras.' : ''}
 
-# **${hasSamples ? fmtVal : 'INCONCLUSIVO (Sem amostras)'}**
+### Quadro de Amostras e Tratamento
+| Local | Valor Oferta/${unitStr} | Fatores Aplicados | **Valor Homogeneizado/${unitStr}** |
+|---|---|---|---|
+${homogenizedSamples.map(s => `| ${s.city} | ${s.pricePerUnit.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})} | ${s.appliedFactors} | **${s.homogenizedUnitPrice.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}** |`).join('\n')}
 
-${!hasSamples ? '> **AVISO:** Nenhuma amostra encontrada no banco de dados para esta região (Municipal ou Estadual). Cadastre amostras no Painel Administrativo.' : ''}
+---
+
+## ${isRural ? '8' : '5'}. CONCLUSÃO DE VALOR DE MERCADO
+
+O valor de mercado foi determinado pela média saneada das amostras homogeneizadas, multiplicada pela área do imóvel.
+
+* **Média Unitária Homogeneizada:** ${fmtAvg} / ${unitStr}
+* **Área Considerada:** ${refArea} ${unitStr}
+
+# **VALOR TOTAL ESTIMADO: ${hasSamples ? fmtVal : 'INCONCLUSIVO'}**
+
+${!hasSamples ? '> **NOTA TÉCNICA:** Insuficiência de dados amostrais estatisticamente relevantes nesta região. Recomenda-se vistoria in loco para coleta de dados primários.' : ''}
   `;
 
   return {
     reportText,
-    sources: samples,
+    sources: homogenizedSamples, // Retorna as amostras já com os dados processados para display se necessário
     estimatedValue: hasSamples ? fmtVal : 'N/A'
   };
 };
