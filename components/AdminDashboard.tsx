@@ -185,6 +185,28 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                </select>
             </div>
 
+            {/* CAMPOS COMUNS (CIDADE, PREÇO, ÁREA) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
+               <div>
+                  <label className="block text-sm font-bold mb-1">Cidade *</label>
+                  <input name="city" value={form.city} onChange={handleChange} className="w-full border p-2 rounded" required />
+               </div>
+               <div>
+                  <label className="block text-sm font-bold mb-1">Estado *</label>
+                  <select name="state" value={form.state} onChange={handleChange} className="w-full border p-2 rounded" required>
+                     <option value="">UF</option>{BRAZIL_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+               </div>
+               <div>
+                  <label className="block text-sm font-bold mb-1">Área Total {form.type === PropertyType.RURAL ? '(ha)' : '(m²)'} *</label>
+                  <input type="number" name="areaTotal" value={form.areaTotal || ''} onChange={handleChange} className="w-full border p-2 rounded" required />
+               </div>
+               <div>
+                  <label className="block text-sm font-bold mb-1">Valor Total (R$) *</label>
+                  <input type="text" value={priceDisplay} onChange={handlePriceChange} className="w-full border p-2 rounded font-bold" required />
+               </div>
+            </div>
+
             {/* FORMULÁRIO RURAL ATUALIZADO */}
             {form.type === PropertyType.RURAL && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded bg-green-50">
@@ -271,28 +293,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                  </div>
               </div>
             )}
-            
-            {/* CAMPOS COMUNS (CIDADE, PREÇO, ÁREA) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
-               <div>
-                  <label className="block text-sm font-bold mb-1">Cidade *</label>
-                  <input name="city" value={form.city} onChange={handleChange} className="w-full border p-2 rounded" required />
-               </div>
-               <div>
-                  <label className="block text-sm font-bold mb-1">Estado *</label>
-                  <select name="state" value={form.state} onChange={handleChange} className="w-full border p-2 rounded" required>
-                     <option value="">UF</option>{BRAZIL_STATES.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-               </div>
-               <div>
-                  <label className="block text-sm font-bold mb-1">Área Total {form.type === PropertyType.RURAL ? '(ha)' : '(m²)'} *</label>
-                  <input type="number" name="areaTotal" value={form.areaTotal || ''} onChange={handleChange} className="w-full border p-2 rounded" required />
-               </div>
-               <div>
-                  <label className="block text-sm font-bold mb-1">Valor Total (R$) *</label>
-                  <input type="text" value={priceDisplay} onChange={handlePriceChange} className="w-full border p-2 rounded font-bold" required />
-               </div>
-            </div>
 
             <button type="submit" className="w-full bg-agro-700 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-agro-800">
               {editingId ? 'Atualizar Amostra' : 'Salvar Amostra'}
