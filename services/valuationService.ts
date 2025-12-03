@@ -33,6 +33,10 @@ const COEF_SURFACE: Record<string, number> = {
   'DEFAULT': 1.00
 };
 
+// Coeficiente de elasticidade para o Fator Grandeza (Empírico para rurais)
+// Varia tipicamente entre 0.10 e 0.25 dependendo da região. Adotado 0.15 como média conservadora.
+const GREATNESS_EXPONENT = 0.15; 
+
 // Função auxiliar para pegar coeficiente com fallback seguro
 const getCoef = (table: Record<string, number>, key: string | undefined) => {
   if (!key) return table['DEFAULT'];
@@ -153,9 +157,22 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
 
       // 2. Fatores Físicos (Apenas RURAL aplica homogeneização detalhada neste modelo)
       if (isRural) {
+        // --- FATOR GRANDEZA (Transposição de Área) ---
+        // Fórmula: (Area_Amostra / Area_Avaliando) ^ k
+        // Explicação: Se a amostra é maior que o avaliando, ela tende a ter unitário menor. 
+        // O fator será > 1 para aumentar o unitário da amostra para comparar com o avaliando.
+        if (data.areaTotal > 0 && sample.areaTotal > 0) {
+           const areaRatio = sample.areaTotal / data.areaTotal;
+           const factorGreatness = Math.pow(areaRatio, GREATNESS_EXPONENT);
+           
+           // Aplica apenas se a diferença for relevante (ex: > 1%)
+           if (Math.abs(factorGreatness - 1.0) > 0.01) {
+             unitPrice = unitPrice * factorGreatness;
+             factors.push(`Grandeza (${factorGreatness.toFixed(2)})`);
+           }
+        }
+
         // Topografia
-        // Fórmula: Fator = Coef(Avaliado) / Coef(Amostra)
-        // Se a amostra não tiver dado, assumimos que é similar ao avaliado (Fator 1.0)
         const coefSubjectTopo = getCoef(COEF_TOPOGRAPHY, data.topography);
         const coefSampleTopo = sample.topography ? getCoef(COEF_TOPOGRAPHY, sample.topography) : coefSubjectTopo;
         const factorTopo = coefSubjectTopo / coefSampleTopo;
@@ -219,6 +236,7 @@ Conforme NBR 14653-3, foram considerados os seguintes aspectos físicos na homog
 * **Topografia:** ${data.topography || 'Não informado'} (Impacto na mecanização e manejo).
 * **Superfície/Solo:** ${data.surface || 'Não informado'} (Drenagem e capacidade de suporte).
 * **Acessibilidade:** ${data.access || 'Não informado'} (Logística de insumos e escoamento).
+* **Fator Grandeza:** Ajuste estatístico aplicado para compensar a elasticidade do preço unitário em função da diferença de área entre as amostras e o imóvel avaliando.
 * **Recursos Hídricos:** Considerado implicitamente no valor de mercado da região.
 
 ### 4. BENFEITORIAS E INFRAESTRUTURA
@@ -267,7 +285,7 @@ ${ruralSpecifics}
 ## ${isRural ? '7' : '4'}. CÁLCULOS E HOMOGENEIZAÇÃO
 
 Foi aplicado o **Fator de Oferta (0.90)** sobre todas as amostras para ajustar a elasticidade de negociação (pedida vs. fechamento).
-${isRural ? 'Adicionalmente, foram aplicados fatores de homogeneização para Topografia, Acesso e Solo quando as informações estavam disponíveis nas amostras.' : ''}
+${isRural ? 'Adicionalmente, foram aplicados fatores de homogeneização para Topografia, Acesso, Solo e **Grandeza (Área)**.' : ''}
 
 ### Quadro de Amostras e Tratamento
 | Local | Valor Oferta/${unitStr} | Fatores Aplicados | **Valor Homogeneizado/${unitStr}** |
