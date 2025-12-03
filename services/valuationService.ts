@@ -358,18 +358,21 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
   const reportText = `
     <!-- CAPA -->
     <div class="report-cover flex flex-col items-center justify-center min-h-[1000px] text-center p-10 bg-white relative">
-      <div class="absolute top-10 right-10">
-         <div class="flex flex-col items-end">
-             <div class="w-16 h-16 bg-orange-500 rounded-full flex items-center justify-center text-white font-bold text-2xl mb-1">
-               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" class="w-10 h-10">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0 0 12 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75Z" />
-               </svg>
-             </div>
-             <span class="text-sm font-serif font-bold text-gray-800">Bandeira Agro</span>
-         </div>
+      
+      <!-- LOGOMARCA CENTRALIZADA BANDEIRA AGRO -->
+      <div class="mb-12 flex flex-col items-center justify-center">
+          <svg width="128" height="128" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Círculo Laranja -->
+            <circle cx="100" cy="100" r="90" stroke="#f97316" stroke-width="12" fill="none" />
+            <!-- Folha Verde Estilizada -->
+            <path d="M40 160 Q 90 110 160 50" stroke="#15803d" stroke-width="0" fill="none" />
+            <path d="M50 150 C 50 150, 70 110, 80 90 C 90 70, 140 40, 160 30 C 140 50, 110 80, 100 100 C 90 120, 70 160, 60 170 Z" fill="#15803d" />
+            <path d="M60 160 C 60 160, 80 130, 90 110 C 100 90, 130 70, 150 60 C 130 80, 110 100, 100 120 C 90 140, 70 170, 60 170 Z" fill="#14532d" opacity="0.6" />
+          </svg>
+          <div class="mt-4 text-2xl font-serif font-bold text-gray-800 tracking-widest uppercase">Bandeira Agro</div>
       </div>
       
-      <div class="flex-grow flex flex-col justify-center mt-32">
+      <div class="flex-grow flex flex-col justify-center">
         <h1 class="text-4xl md:text-5xl font-serif font-bold text-gray-800 mb-8 leading-tight tracking-wide">
           LAUDO TÉCNICO DE<br/>AVALIAÇÃO
         </h1>
