@@ -99,95 +99,123 @@ const getCoef = (table: Record<string, number>, key: string | undefined) => {
   return found ? table[found] : table['DEFAULT'];
 };
 
+/**
+ * Calcula um Score de Similaridade entre o imóvel avaliando e uma amostra.
+ * Quanto maior o score, mais semelhante é a amostra.
+ */
+const calculateSimilarity = (target: PropertyData, sample: MarketSample): number => {
+  let score = 0;
+
+  // 1. LOCALIZAÇÃO (Peso Máximo: 1000)
+  // Mesma cidade é o critério mais forte
+  if (sample.city.trim().toLowerCase() === target.city.trim().toLowerCase()) {
+    score += 1000;
+  } else {
+    // Mesmo estado ganha pontuação menor, mas existe
+    if (sample.state === target.state) score += 100;
+  }
+
+  // 2. TIPO E ATIVIDADE (Peso Máximo: 500)
+  const isRural = target.type === PropertyType.RURAL;
+  const targetSub = isRural ? target.ruralActivity : target.urbanSubType;
+  const sampleSub = isRural ? sample.ruralActivity : sample.urbanSubType;
+
+  if (targetSub === sampleSub) {
+    score += 500;
+  }
+
+  // 3. ÁREA TOTAL (Peso Máximo: 300)
+  // Quanto mais próxima a área, maior a pontuação.
+  // Cálculo: 300 * (Menor Área / Maior Área)
+  const minArea = Math.min(target.areaTotal, sample.areaTotal);
+  const maxArea = Math.max(target.areaTotal, sample.areaTotal);
+  const areaRatio = maxArea > 0 ? (minArea / maxArea) : 0;
+  score += (areaRatio * 300);
+
+  // 4. CARACTERÍSTICAS ESPECÍFICAS (Peso Máximo: 200)
+  if (isRural) {
+    // Bonificação por características físicas iguais
+    if (target.landCapability && target.landCapability === sample.landCapability) score += 50;
+    if (target.topography && target.topography === sample.topography) score += 50;
+    if (target.access && target.access === sample.access) score += 50;
+    if (target.occupation && target.occupation === sample.occupation) score += 50;
+  } else {
+    // Bonificação para urbanos
+    if (target.bedrooms && Math.abs(target.bedrooms - (sample.bedrooms || 0)) <= 1) score += 50;
+    if (target.conservationState === sample.conservationState) score += 50;
+  }
+
+  return score;
+};
+
 export const generateManualValuation = async (data: PropertyData): Promise<ValuationResult> => {
   await new Promise(resolve => setTimeout(resolve, 500));
 
   const isRural = data.type === PropertyType.RURAL;
   const subType = isRural ? data.ruralActivity : data.urbanSubType;
-  let searchScope = `região de <strong>${data.city}/${data.state}</strong>`;
-  const MIN_SAMPLES = 5;
+  const TARGET_SAMPLE_COUNT = 5; // Regra estrita: 5 amostras
   
-  // --- 1. COLETA DE DADOS (CASCATA DE BUSCA) ---
-  // Nível 1: Busca Exata (Cidade + Tipo + Subtipo)
-  let samples = await filterSamples(data.type, data.city, data.state, subType);
-
-  // Nível 2: Busca Geral na Cidade (Se < 5)
-  if (samples.length < MIN_SAMPLES) {
-    const generalCitySamples = await filterSamples(data.type, data.city, data.state);
-    const existingIds = new Set(samples.map(s => s.id));
-    for (const gs of generalCitySamples) {
-      if (!existingIds.has(gs.id)) {
-        samples.push(gs);
-        existingIds.add(gs.id);
+  // Lista de Candidatos Únicos (Map para evitar duplicatas por ID)
+  const candidatesMap = new Map<string, MarketSample>();
+  
+  const addCandidates = (newSamples: MarketSample[]) => {
+    newSamples.forEach(s => {
+      if (!candidatesMap.has(s.id)) {
+        candidatesMap.set(s.id, s);
       }
+    });
+  };
+
+  // --- 1. COLETA DE CANDIDATOS (BUSCA ABRANGENTE) ---
+  
+  // A. Busca na Cidade Alvo (Mesmo subtipo)
+  const citySamplesExact = await filterSamples(data.type, data.city, data.state, subType);
+  addCandidates(citySamplesExact);
+
+  // B. Busca na Cidade Alvo (Qualquer subtipo - Fallback)
+  const citySamplesGeneral = await filterSamples(data.type, data.city, data.state);
+  addCandidates(citySamplesGeneral);
+
+  // C. Busca em Cidades Vizinhas (Geograficamente próximas)
+  try {
+    const neighborCities = await getNeighboringCities(data.city, data.state);
+    if (neighborCities.length > 0) {
+      const neighborSamples = await getSamplesByCities(neighborCities, data.state, data.type);
+      addCandidates(neighborSamples);
     }
+  } catch (err) {
+    console.warn("Falha ao buscar cidades vizinhas:", err);
   }
 
-  // Nível 3: Cidades Vizinhas (Se < 5)
-  if (samples.length < MIN_SAMPLES) {
+  // D. Busca Regional/Estadual (Último recurso se tivermos poucos candidatos)
+  if (candidatesMap.size < TARGET_SAMPLE_COUNT) {
     try {
-      const neighborCities = await getNeighboringCities(data.city, data.state);
-      if (neighborCities.length > 0) {
-        // Primeiro tenta vizinhos com mesmo subtipo
-        const neighborSamples = await getSamplesByCities(neighborCities, data.state, data.type, subType);
-        
-        // Se ainda faltar, tenta vizinhos com qualquer subtipo
-        let neighborSamplesGeneral: any[] = [];
-        if ((samples.length + neighborSamples.length) < MIN_SAMPLES) {
-           neighborSamplesGeneral = await getSamplesByCities(neighborCities, data.state, data.type);
-        }
-
-        const allNeighbors = [...neighborSamples, ...neighborSamplesGeneral];
-        const existingIds = new Set(samples.map(s => s.id));
-        let addedCount = 0;
-        for (const ns of allNeighbors) {
-          if (!existingIds.has(ns.id)) {
-            samples.push(ns);
-            existingIds.add(ns.id);
-            addedCount++;
-          }
-        }
-        if (addedCount > 0) {
-          searchScope = `região de <strong>${data.city}</strong> e municípios vizinhos (<strong>${neighborCities.slice(0, 3).join(', ')}...</strong>)`;
-        }
-      }
-    } catch (err) {
-      console.warn("Falha ao buscar cidades vizinhas:", err);
-    }
-  }
-
-  // Nível 4: Busca Estadual / Regional Ampliada (Se < 5) - GARANTIA DE AMOSTRAS
-  if (samples.length < MIN_SAMPLES) {
-    try {
-      // Busca todas as amostras do Estado
-      const stateSamples = await filterSamples(data.type, "", data.state); // Cidade vazia = busca estadual
-      const existingIds = new Set(samples.map(s => s.id));
-      let addedCount = 0;
-
-      // Adiciona até completar ou acabar
-      for (const ss of stateSamples) {
-        if (!existingIds.has(ss.id)) {
-          samples.push(ss);
-          existingIds.add(ss.id);
-          addedCount++;
-          // Se já temos o suficiente + uma margem de segurança, pode parar (opcional, aqui pego todas disponíveis para melhor seleção)
-          if (samples.length >= MIN_SAMPLES + 2) break; 
-        }
-      }
-
-      if (addedCount > 0) {
-        searchScope = `região de <strong>${data.city}</strong>, vizinhança e <strong>mercado regional (${data.state})</strong> devido à escassez local`;
-      }
+      const stateSamples = await filterSamples(data.type, "", data.state);
+      addCandidates(stateSamples);
     } catch (err) {
       console.warn("Falha ao buscar amostras estaduais:", err);
     }
   }
 
+  // --- 2. SELEÇÃO E RANKING (TOP 5) ---
+  const allCandidates = Array.from(candidatesMap.values());
+  
+  // Ordena por similaridade (Maior score primeiro)
+  const rankedCandidates = allCandidates
+    .map(sample => ({
+      sample,
+      score: calculateSimilarity(data, sample)
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  // Seleciona EXATAMENTE as top 5 (ou menos, se não houver 5 disponíveis)
+  const samples = rankedCandidates.slice(0, TARGET_SAMPLE_COUNT).map(item => item.sample);
+  
   const hasSamples = samples.length > 0;
   const unitStr = isRural ? 'ha' : 'm²';
   const OFFER_FACTOR = 0.90; // Fator de Oferta Obrigatório (10% de desconto sobre o valor pedido)
 
-  // --- 2. CÁLCULOS E HOMOGENEIZAÇÃO ---
+  // --- 3. CÁLCULOS E HOMOGENEIZAÇÃO ---
   let homogenizedSamples: any[] = [];
   let sumHomogenizedUnit = 0;
 
@@ -288,9 +316,9 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
   if (coeffVariation > 0.30) precisionGrade = "Fora de Grau";
 
   // Intervalo de Confiança (80% - t-student simplificado para n=5 aprox 1.533)
-  // Para n=5, t=1.533 (80%)
-  const tStudent = 1.476; // Aproximado para n=6 conforme PDF, ajustável
-  const confidenceInterval = tStudent * (stdDev / Math.sqrt(count));
+  // Para n=5, t=1.533 (80%). Ajustado para n=5 fixo = 1.533
+  const tStudent = 1.533; 
+  const confidenceInterval = count > 0 ? tStudent * (stdDev / Math.sqrt(count)) : 0;
   const minInterval = avgHomogenizedUnitPrice - confidenceInterval;
   const maxInterval = avgHomogenizedUnitPrice + confidenceInterval;
 
