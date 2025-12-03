@@ -416,7 +416,6 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
           <div class="inline-block border-t border-gray-400 px-10 pt-2">
              <p class="font-bold text-gray-800">BANDEIRA AGRO</p>
              <p class="text-sm text-gray-600">Inteligência em Avaliações</p>
-             <p class="text-xs text-gray-500">CREA/SP Jurídico</p>
           </div>
       </div>
     </div>
