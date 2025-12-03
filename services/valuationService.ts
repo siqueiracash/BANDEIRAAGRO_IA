@@ -434,8 +434,12 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
         </div>
 
       </div>
+    </div>
 
-      <!-- ENCERRAMENTO -->
+    <div class="page-break"></div>
+
+    <!-- ENCERRAMENTO -->
+    <div class="report-section p-8">
       <div class="mt-12 border-t-2 border-gray-800 pt-6">
         <h3 class="text-lg font-bold text-gray-900 mb-3">5. ENCERRAMENTO</h3>
         <p class="text-gray-700 text-sm mb-4">
