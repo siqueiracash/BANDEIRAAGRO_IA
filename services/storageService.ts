@@ -32,10 +32,47 @@ export const getSamples = async (): Promise<MarketSample[]> => {
   return data as MarketSample[];
 };
 
+// Função auxiliar para limpar undefined e garantir null para o BD
+const preparePayload = (sample: Partial<MarketSample>, pricePerUnit: number) => {
+  return {
+    // Obrigatórios
+    type: sample.type,
+    city: sample.city,
+    state: sample.state,
+    price: sample.price,
+    areaTotal: sample.areaTotal,
+    pricePerUnit: pricePerUnit,
+    date: sample.date || new Date().toISOString(),
+    source: sample.source || 'Manual',
+    title: sample.title || '',
+
+    // Opcionais Comuns (undefined -> null)
+    address: sample.address || null,
+    neighborhood: sample.neighborhood || null,
+    areaBuilt: sample.areaBuilt || null,
+
+    // Urbanos
+    urbanSubType: sample.urbanSubType || null,
+    bedrooms: sample.bedrooms || null,
+    bathrooms: sample.bathrooms || null,
+    parking: sample.parking || null,
+    conservationState: sample.conservationState || null,
+
+    // Rurais
+    ruralActivity: sample.ruralActivity || null,
+    carNumber: sample.carNumber || null,
+    surface: sample.surface || null,
+    access: sample.access || null,
+    topography: sample.topography || null,
+    occupation: sample.occupation || null,
+    improvements: sample.improvements || null,
+    landCapability: sample.landCapability || null,
+    publicImprovements: sample.publicImprovements || null
+  };
+};
+
 export const saveSample = async (sample: Omit<MarketSample, 'id' | 'pricePerUnit'>): Promise<MarketSample | null> => {
   // CORREÇÃO: Define o divisor correto baseado no tipo.
-  // RURAL: Sempre divide pela Área Total (Preço por Hectare).
-  // URBANO: Divide pela Área Construída se houver, senão pela Área Total.
   let divisor = sample.areaTotal;
   if (sample.type === PropertyType.URBAN && sample.areaBuilt && sample.areaBuilt > 0) {
     divisor = sample.areaBuilt;
@@ -43,17 +80,8 @@ export const saveSample = async (sample: Omit<MarketSample, 'id' | 'pricePerUnit
   
   const pricePerUnit = sample.price / (divisor || 1);
 
-  // Prepara o objeto, removendo campos undefined para o Supabase não reclamar
-  const newSamplePayload = {
-    ...sample,
-    pricePerUnit,
-    // Garante que campos opcionais sejam null se undefined
-    neighborhood: sample.neighborhood || null,
-    address: sample.address || null,
-    urbanSubType: sample.urbanSubType || null,
-    ruralActivity: sample.ruralActivity || null,
-    // Adiciona data de criação se a tabela tiver created_at
-  };
+  // Prepara o objeto completo mapeando todos os campos
+  const newSamplePayload = preparePayload(sample, pricePerUnit);
 
   if (!supabase) {
     const localSample = { ...newSamplePayload, id: Date.now().toString() };
@@ -70,7 +98,7 @@ export const saveSample = async (sample: Omit<MarketSample, 'id' | 'pricePerUnit
 
   if (error) {
     console.error("Erro ao salvar amostra:", error);
-    alert("Erro ao salvar no banco de dados.");
+    alert("Erro ao salvar no banco de dados: " + error.message);
     return null;
   }
 
@@ -78,7 +106,6 @@ export const saveSample = async (sample: Omit<MarketSample, 'id' | 'pricePerUnit
 };
 
 export const updateSample = async (sample: MarketSample): Promise<MarketSample | null> => {
-  // CORREÇÃO: Mesma lógica de divisor do saveSample
   let divisor = sample.areaTotal;
   if (sample.type === PropertyType.URBAN && sample.areaBuilt && sample.areaBuilt > 0) {
     divisor = sample.areaBuilt;
@@ -86,18 +113,16 @@ export const updateSample = async (sample: MarketSample): Promise<MarketSample |
   
   const pricePerUnit = sample.price / (divisor || 1);
 
-  const updatePayload = {
-    ...sample,
-    pricePerUnit
-  };
+  const updatePayload = preparePayload(sample, pricePerUnit);
 
   if (!supabase) {
     const current = getLocalSamples();
     const index = current.findIndex(s => s.id === sample.id);
     if (index !== -1) {
-      current[index] = updatePayload;
+      const updated = { ...updatePayload, id: sample.id };
+      current[index] = updated as MarketSample;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
-      return updatePayload;
+      return updated as MarketSample;
     }
     return null;
   }
@@ -111,6 +136,7 @@ export const updateSample = async (sample: MarketSample): Promise<MarketSample |
 
   if (error) {
     console.error("Erro ao atualizar amostra:", error);
+    alert("Erro ao atualizar: " + error.message);
     return null;
   }
 
