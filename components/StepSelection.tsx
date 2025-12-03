@@ -38,9 +38,15 @@ const StepSelection: React.FC<StepSelectionProps> = ({ onSelect }) => {
         >
            <div className="absolute inset-0 bg-agro-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
           <div className="relative z-10 p-4 bg-green-100 rounded-full mb-6 text-green-600 group-hover:bg-agro-500 group-hover:text-white transition-colors duration-300">
-            {/* Ícone atualizado para um Celeiro (Barn/Farm) */}
+            {/* Ícone atualizado para um Trator mais realista */}
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-10 h-10">
-               <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 4.5l-8.25 6a2.25 2.25 0 00-.75 1.76V21a.75.75 0 00.75.75h18a.75.75 0 00.75-.75V12.26a2.25 2.25 0 00-.75-1.76l-8.25-6a2.25 2.25 0 00-2.65 0z M12 15.75a3 3 0 100-6 3 3 0 000 6z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 16.5a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 18a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 15.75h6" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12.75 15.75V8.25H19.5V13" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12.75 12.75H6.75V15.75" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 12.75V6.75" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h3" />
             </svg>
           </div>
           <h3 className="relative z-10 text-2xl font-bold text-gray-800 group-hover:text-agro-700">Imóvel Rural</h3>
