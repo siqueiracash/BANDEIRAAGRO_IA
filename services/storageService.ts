@@ -58,7 +58,7 @@ const preparePayload = (sample: Partial<MarketSample>, pricePerUnit: number) => 
     parking: sample.parking || null,
     conservationState: sample.conservationState || null,
 
-    // Rurais
+    // Rurais (Mapeamento Completo)
     ruralActivity: sample.ruralActivity || null,
     carNumber: sample.carNumber || null,
     surface: sample.surface || null,
