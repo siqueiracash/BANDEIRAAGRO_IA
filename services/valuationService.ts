@@ -317,7 +317,7 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
   const currentDate = new Date().toLocaleDateString('pt-BR');
 
   // --- PAGINAÇÃO DE AMOSTRAS (ANEXO 01) ---
-  const samplesPerPage = 2;
+  const samplesPerPage = 2; // Máximo 2 amostras por página
   const sampleChunks = [];
   for (let i = 0; i < samples.length; i += samplesPerPage) {
     sampleChunks.push({

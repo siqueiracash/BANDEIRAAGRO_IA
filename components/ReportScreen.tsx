@@ -9,28 +9,71 @@ interface ReportScreenProps {
 
 const ReportScreen: React.FC<ReportScreenProps> = ({ data, onReset }) => {
   return (
-    <div className="w-full max-w-5xl animate-fade-in pb-10">
+    <div className="w-full max-w-5xl animate-fade-in pb-10 print:pb-0">
       <style>{`
         @media print {
           @page { margin: 0; size: A4; }
-          body { background-color: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          html, body { margin: 0 !important; padding: 0 !important; overflow: visible; height: auto; }
           .no-print { display: none !important; }
-          .page-break { page-break-before: always; }
+          
+          /* Força quebra de página antes deste elemento */
+          .page-break { 
+            page-break-before: always; 
+            height: 0; 
+            overflow: hidden; 
+            display: block; 
+          }
+          
           .break-inside-avoid { break-inside: avoid; }
           
           /* Esconde cabeçalho e rodapé da app web */
           header, footer, .web-header { display: none !important; }
-          main { width: 100% !important; max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
           
-          /* Garante que o container ocupe a largura total */
-          .report-container { box-shadow: none !important; padding: 0 !important; margin: 0 !important; max-width: 100% !important; }
+          /* Reset total do container principal para evitar flexbox issues na impressão */
+          #root, main { 
+            width: 100% !important; 
+            max-width: 100% !important; 
+            padding: 0 !important; 
+            margin: 0 !important; 
+            display: block !important; 
+          }
           
-          /* Ajuste da Capa para preencher folha com Margens ABNT: Sup/Esq 3cm, Inf/Dir 2cm */
-          /* Padding order: Top Right Bottom Left */
-          .report-cover { height: 297mm; width: 210mm; padding: 30mm 20mm 20mm 30mm; }
+          /* Garante que o container do relatório ocupe a largura total e não tenha sombras */
+          .report-container { 
+            box-shadow: none !important; 
+            padding: 0 !important; 
+            margin: 0 !important; 
+            max-width: 100% !important; 
+            width: 100% !important;
+            border-radius: 0 !important;
+            background-color: white !important;
+          }
           
-          /* Ajuste das Seções internas com Margens ABNT */
-          .report-section { padding: 30mm 20mm 20mm 30mm; min-height: 297mm; width: 210mm; }
+          /* Ajuste da Capa - Reduzido para 296mm para evitar transbordo de 1px */
+          .report-cover { 
+            height: 296mm; 
+            width: 210mm; 
+            padding: 30mm 20mm 20mm 30mm; 
+            overflow: hidden;
+            page-break-after: always;
+            position: relative;
+          }
+          
+          /* Ajuste das Seções internas */
+          .report-section { 
+            padding: 30mm 20mm 20mm 30mm; 
+            min-height: 296mm; /* Margem de segurança */
+            height: auto;
+            width: 210mm; 
+            overflow: hidden;
+            position: relative;
+            background-color: white;
+            /* Evita quebra dentro da seção, mas permite o fluxo natural */
+            page-break-inside: avoid;
+          }
+          
+          /* Garante impressão exata de cores */
+          * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
 
         /* Estilos Web */
