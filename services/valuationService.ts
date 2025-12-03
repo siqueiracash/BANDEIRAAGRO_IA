@@ -497,11 +497,11 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
           <p class="text-gray-700 mb-2">
              <strong>Taxa Média de Juros:</strong> Para o cálculo da taxa média de juros foi adotada a série composta pelas linhas de crédito de mercado. A taxa mensal média de juros obtida foi igual a <strong>1,51%</strong>.
           </p>
-          <p class="text-gray-700 mb-4">
+          <p class="text-gray-700 mb-12">
              <strong>Tempo de Absorção:</strong> Estimado em <strong>24 meses</strong> para imóveis análogos.
           </p>
           
-          <div class="bg-gray-100 p-4 rounded border border-gray-300 text-center max-w-lg mx-auto">
+          <div class="bg-gray-100 p-4 rounded border border-gray-300 text-center max-w-lg mx-auto mt-8">
              <p class="font-bold text-gray-800 mb-2">Fórmula de Deságio</p>
              <p class="font-mono text-sm">Valor Liquidação = Valor Mercado × (1 / (1 + 0,0151)^24)</p>
              <p class="font-mono text-sm mt-1">Fator = ${fmtDec(liquidityFactor, 4)}</p>
