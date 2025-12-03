@@ -61,6 +61,7 @@ const StepForm: React.FC<StepFormProps> = ({ propertyType, onSubmit, onBack }) =
                 <option value="Lavoura">Lavoura</option>
                 <option value="Pasto">Pasto</option>
                 <option value="Floresta">Floresta</option>
+                <option value="Cerrado Nativo">Cerrado Nativo</option>
                 <option value="Área de Preservação">Área de Preservação</option>
               </select>
             </div>
