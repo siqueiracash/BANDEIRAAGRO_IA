@@ -263,43 +263,45 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
     <div class="page-break"></div>
 
     <!-- RESUMO -->
-    <div class="report-section p-8">
-      <div class="border-b border-gray-300 pb-4 mb-6 text-center">
-        <h2 class="text-2xl font-serif font-bold text-gray-800 uppercase">Resumo da Avaliação</h2>
+    <div class="report-section p-8 flex flex-col justify-between">
+      <div>
+        <div class="border-b border-gray-300 pb-4 mb-6 text-center">
+          <h2 class="text-2xl font-serif font-bold text-gray-800 uppercase">Resumo da Avaliação</h2>
+        </div>
+
+        <div class="space-y-6">
+          <div>
+            <h3 class="text-sm font-bold text-gray-500 uppercase mb-2 border-b border-gray-100">Dados do Imóvel</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div><strong>Localização:</strong> ${data.address || 'Não informado'}, ${data.city} - ${data.state}</div>
+              <div><strong>Tipo de Imóvel:</strong> ${data.type} (${subType})</div>
+              <div><strong>Área Total:</strong> ${fmtDec(data.areaTotal)} ${unitStr}</div>
+              <div><strong>Atividade Predominante:</strong> ${isRural ? data.ruralActivity : data.urbanSubType}</div>
+            </div>
+          </div>
+
+          <div class="bg-gray-50 p-6 rounded-lg border border-gray-200">
+            <h3 class="text-lg font-serif font-bold text-center text-gray-800 mb-6 uppercase">Resumo de Valores</h3>
+            
+            <div class="flex flex-col gap-4">
+              <div class="flex justify-between items-center border-b border-gray-300 pb-2">
+                <span class="text-gray-600 font-medium">Valor de Mercado</span>
+                <span class="text-2xl font-bold text-gray-900">${fmtBRL(marketValue)}</span>
+              </div>
+              <div class="flex justify-between items-center pb-2">
+                <span class="text-gray-600 font-medium">Valor de Liquidação Forçada</span>
+                <span class="text-2xl font-bold text-gray-900">${fmtBRL(liquidationValue)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div class="space-y-6">
-        <div>
-          <h3 class="text-sm font-bold text-gray-500 uppercase mb-2 border-b border-gray-100">Dados do Imóvel</h3>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <div><strong>Localização:</strong> ${data.address || 'Não informado'}, ${data.city} - ${data.state}</div>
-            <div><strong>Tipo de Imóvel:</strong> ${data.type} (${subType})</div>
-            <div><strong>Área Total:</strong> ${fmtDec(data.areaTotal)} ${unitStr}</div>
-            <div><strong>Atividade Predominante:</strong> ${isRural ? data.ruralActivity : data.urbanSubType}</div>
-          </div>
-        </div>
-
-        <div class="bg-gray-50 p-6 rounded-lg border border-gray-200">
-          <h3 class="text-lg font-serif font-bold text-center text-gray-800 mb-6 uppercase">Resumo de Valores</h3>
-          
-          <div class="flex flex-col gap-4">
-            <div class="flex justify-between items-center border-b border-gray-300 pb-2">
-              <span class="text-gray-600 font-medium">Valor de Mercado</span>
-              <span class="text-2xl font-bold text-gray-900">${fmtBRL(marketValue)}</span>
-            </div>
-            <div class="flex justify-between items-center pb-2">
-              <span class="text-gray-600 font-medium">Valor de Liquidação Forçada</span>
-              <span class="text-2xl font-bold text-gray-900">${fmtBRL(liquidationValue)}</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="mt-32 text-center">
-          <div class="inline-block border-t border-gray-400 pt-2 px-10">
-            <p class="font-script text-2xl text-blue-900 mb-1">Bandeira Agro</p>
-            <p class="font-bold text-gray-800 text-sm">Responsável Técnico</p>
-            <p class="text-gray-500 text-xs">Bandeira Agro Inteligência Imobiliária</p>
-          </div>
+      <div class="text-center mt-12 pb-12">
+        <div class="inline-block border-t border-gray-400 pt-2 px-10">
+          <p class="font-script text-2xl text-blue-900 mb-1">Bandeira Agro</p>
+          <p class="font-bold text-gray-800 text-sm">Responsável Técnico</p>
+          <p class="text-gray-500 text-xs">Bandeira Agro Inteligência Imobiliária</p>
         </div>
       </div>
     </div>
