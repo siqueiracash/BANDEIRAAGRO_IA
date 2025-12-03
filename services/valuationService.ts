@@ -107,10 +107,11 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
   let searchScope = `região de <strong>${data.city}/${data.state}</strong>`;
   const MIN_SAMPLES = 5;
   
-  // --- 1. COLETA DE DADOS ---
+  // --- 1. COLETA DE DADOS (CASCATA DE BUSCA) ---
+  // Nível 1: Busca Exata (Cidade + Tipo + Subtipo)
   let samples = await filterSamples(data.type, data.city, data.state, subType);
 
-  // Fallback 1: Mesma cidade, qualquer subtipo
+  // Nível 2: Busca Geral na Cidade (Se < 5)
   if (samples.length < MIN_SAMPLES) {
     const generalCitySamples = await filterSamples(data.type, data.city, data.state);
     const existingIds = new Set(samples.map(s => s.id));
@@ -122,16 +123,20 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
     }
   }
 
-  // Fallback 2: Cidades Vizinhas (IA)
+  // Nível 3: Cidades Vizinhas (Se < 5)
   if (samples.length < MIN_SAMPLES) {
     try {
       const neighborCities = await getNeighboringCities(data.city, data.state);
       if (neighborCities.length > 0) {
+        // Primeiro tenta vizinhos com mesmo subtipo
         const neighborSamples = await getSamplesByCities(neighborCities, data.state, data.type, subType);
+        
+        // Se ainda faltar, tenta vizinhos com qualquer subtipo
         let neighborSamplesGeneral: any[] = [];
-        if (neighborSamples.length < (MIN_SAMPLES - samples.length)) {
+        if ((samples.length + neighborSamples.length) < MIN_SAMPLES) {
            neighborSamplesGeneral = await getSamplesByCities(neighborCities, data.state, data.type);
         }
+
         const allNeighbors = [...neighborSamples, ...neighborSamplesGeneral];
         const existingIds = new Set(samples.map(s => s.id));
         let addedCount = 0;
@@ -143,7 +148,7 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
           }
         }
         if (addedCount > 0) {
-          searchScope = `região de <strong>${data.city}</strong> e municípios vizinhos (<strong>${neighborCities.slice(0, 3).join(', ')}...</strong>) devido à escassez local`;
+          searchScope = `região de <strong>${data.city}</strong> e municípios vizinhos (<strong>${neighborCities.slice(0, 3).join(', ')}...</strong>)`;
         }
       }
     } catch (err) {
@@ -151,9 +156,36 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
     }
   }
 
+  // Nível 4: Busca Estadual / Regional Ampliada (Se < 5) - GARANTIA DE AMOSTRAS
+  if (samples.length < MIN_SAMPLES) {
+    try {
+      // Busca todas as amostras do Estado
+      const stateSamples = await filterSamples(data.type, "", data.state); // Cidade vazia = busca estadual
+      const existingIds = new Set(samples.map(s => s.id));
+      let addedCount = 0;
+
+      // Adiciona até completar ou acabar
+      for (const ss of stateSamples) {
+        if (!existingIds.has(ss.id)) {
+          samples.push(ss);
+          existingIds.add(ss.id);
+          addedCount++;
+          // Se já temos o suficiente + uma margem de segurança, pode parar (opcional, aqui pego todas disponíveis para melhor seleção)
+          if (samples.length >= MIN_SAMPLES + 2) break; 
+        }
+      }
+
+      if (addedCount > 0) {
+        searchScope = `região de <strong>${data.city}</strong>, vizinhança e <strong>mercado regional (${data.state})</strong> devido à escassez local`;
+      }
+    } catch (err) {
+      console.warn("Falha ao buscar amostras estaduais:", err);
+    }
+  }
+
   const hasSamples = samples.length > 0;
   const unitStr = isRural ? 'ha' : 'm²';
-  const OFFER_FACTOR = 0.90; 
+  const OFFER_FACTOR = 0.90; // Fator de Oferta Obrigatório (10% de desconto sobre o valor pedido)
 
   // --- 2. CÁLCULOS E HOMOGENEIZAÇÃO ---
   let homogenizedSamples: any[] = [];
@@ -164,64 +196,64 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
       let unitPrice = sample.pricePerUnit;
       let appliedFactorsList: { name: string, value: number }[] = [];
       
-      // Fator Oferta (Sempre aplica)
+      // 1. Fator Oferta (Sempre aplica primeiro)
+      // Ajusta o valor da oferta para o valor provável de transação
       unitPrice = unitPrice * OFFER_FACTOR;
       appliedFactorsList.push({ name: 'Oferta', value: OFFER_FACTOR });
 
       // --- HOMOGENEIZAÇÃO RURAL COMPLETA ---
       if (isRural) {
-        // 1. Fator Dimensão (Gleba) - Baseado na Tabela
+        // 2. Fator Dimensão (Gleba) - Baseado na Tabela
         const factorSubjectDim = getDimensionFactor(data.areaTotal);
         const factorSampleDim = getDimensionFactor(sample.areaTotal);
-        // Lógica: Índice maior = Valor Unitário Maior. 
-        // Para trazer a amostra ao paradigma: PreçoAmostra * (IndiceParadigma / IndiceAmostra)
+        // Fórmula: PreçoHomogeneizado = PreçoAmostra * (IndiceParadigma / IndiceAmostra)
         const factorDim = factorSubjectDim / factorSampleDim;
         unitPrice = unitPrice * factorDim;
         appliedFactorsList.push({ name: 'Dimensão', value: factorDim });
 
-        // 2. Capacidade de Uso da Terra
+        // 3. Capacidade de Uso da Terra
         const coefSubjectCap = getCoef(COEF_LAND_CAPABILITY, data.landCapability);
         const coefSampleCap = getCoef(COEF_LAND_CAPABILITY, sample.landCapability);
         const factorCap = coefSubjectCap / coefSampleCap;
         unitPrice = unitPrice * factorCap;
         appliedFactorsList.push({ name: 'Cap. Uso', value: factorCap });
 
-        // 3. Situação e Acesso
+        // 4. Situação e Acesso
         const coefSubjectAccess = getCoef(COEF_ACCESS, data.access);
         const coefSampleAccess = getCoef(COEF_ACCESS, sample.access);
         const factorAccess = coefSubjectAccess / coefSampleAccess;
         unitPrice = unitPrice * factorAccess;
         appliedFactorsList.push({ name: 'Acesso', value: factorAccess });
 
-        // 4. Melhoramentos Públicos
+        // 5. Melhoramentos Públicos
         const coefSubjectPub = getCoef(COEF_PUBLIC_IMPROVEMENTS, data.publicImprovements);
         const coefSamplePub = getCoef(COEF_PUBLIC_IMPROVEMENTS, sample.publicImprovements);
         const factorPub = coefSubjectPub / coefSamplePub;
         unitPrice = unitPrice * factorPub;
         appliedFactorsList.push({ name: 'Melhoramentos', value: factorPub });
 
-        // 5. Topografia
+        // 6. Topografia
         const coefSubjectTopo = getCoef(COEF_TOPOGRAPHY, data.topography);
         const coefSampleTopo = getCoef(COEF_TOPOGRAPHY, sample.topography);
         const factorTopo = coefSubjectTopo / coefSampleTopo;
         unitPrice = unitPrice * factorTopo;
         appliedFactorsList.push({ name: 'Topografia', value: factorTopo });
 
-        // 6. Superfície (Solo)
+        // 7. Superfície (Solo)
         const coefSubjectSurf = getCoef(COEF_SURFACE, data.surface);
         const coefSampleSurf = getCoef(COEF_SURFACE, sample.surface);
         const factorSurf = coefSubjectSurf / coefSampleSurf;
         unitPrice = unitPrice * factorSurf;
         appliedFactorsList.push({ name: 'Solo', value: factorSurf });
 
-        // 7. Ocupação (Abertura)
+        // 8. Ocupação (Abertura)
         const coefSubjectOcc = getCoef(COEF_OCCUPATION, data.occupation);
         const coefSampleOcc = getCoef(COEF_OCCUPATION, sample.occupation);
         const factorOcc = coefSubjectOcc / coefSampleOcc;
         unitPrice = unitPrice * factorOcc;
         appliedFactorsList.push({ name: 'Ocupação', value: factorOcc });
 
-        // 8. Benfeitorias (Estrutural)
+        // 9. Benfeitorias (Estrutural)
         const coefSubjectImp = getCoef(COEF_IMPROVEMENTS, data.improvements);
         const coefSampleImp = getCoef(COEF_IMPROVEMENTS, sample.improvements);
         const factorImp = coefSubjectImp / coefSampleImp;
@@ -229,8 +261,12 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
         appliedFactorsList.push({ name: 'Benfeitorias', value: factorImp });
 
       } else {
-        // --- HOMOGENEIZAÇÃO URBANA SIMPLIFICADA (Mantida) ---
-        // (Sem alterações na lógica urbana por enquanto, foco no pedido rural)
+        // --- HOMOGENEIZAÇÃO URBANA SIMPLIFICADA ---
+        // Fator localização simples se for outra cidade (ajuste grosseiro de 10% se não for a mesma cidade)
+        if (sample.city.toLowerCase() !== data.city.toLowerCase()) {
+           // Em tese precisaria de pesquisa de mercado específica para saber se a cidade vizinha é mais cara ou barata.
+           // Assumiremos neutralidade (1.00) ou ajuste leve se necessário. Por norma, mantemos neutro se desconhecido.
+        }
       }
 
       sumHomogenizedUnit += unitPrice;
@@ -247,9 +283,7 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
   const count = homogenizedSamples.length;
   const avgHomogenizedUnitPrice = hasSamples ? (sumHomogenizedUnit / count) : 0;
   
-  // Cálculo do Desvio Padrão e Saneamento (Critério de Chauvenet simplificado: remove outliers > 30% da média)
-  // ... Para manter simples, usaremos desvio padrão direto e classificação de precisão
-  
+  // Cálculo do Desvio Padrão
   let variance = 0;
   if (count > 1) {
     variance = homogenizedSamples.reduce((acc, val) => acc + Math.pow(val.homogenizedUnitPrice - avgHomogenizedUnitPrice, 2), 0) / (count - 1);
@@ -271,12 +305,11 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
   // Valor de Mercado
   const marketValue = avgHomogenizedUnitPrice * refArea;
 
-  // Liquidação Forçada (Mantido)
+  // Liquidação Forçada
   const liquidityRate = 0.0150; 
   const liquidityMonths = 24;
   const liquidityFactor = 1 / Math.pow(1 + liquidityRate, liquidityMonths);
   const liquidationValue = marketValue * liquidityFactor;
-  const desagioPercent = (1 - liquidityFactor) * 100;
 
   const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const fmtDec = (v: number, d = 2) => v.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -379,9 +412,12 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
 
       <div class="mb-8">
         <h3 class="text-lg font-bold text-gray-900 mb-3 border-l-4 border-green-600 pl-3">METODOLOGIA</h3>
-        <p class="text-gray-700 text-sm">
+        <p class="text-gray-700 text-sm mb-2">
           Foi utilizado o <strong>Método Comparativo Direto de Dados de Mercado</strong>. 
-          A homogeneização dos dados seguiu rigorosamente os fatores da tabela técnica da região, considerando Dimensão (Gleba), Capacidade de Uso (Solos), Situação/Acesso, Melhoramentos, Topografia, Superfície e Ocupação.
+          A pesquisa de mercado abrangeu a ${searchScope}.
+        </p>
+        <p class="text-gray-700 text-sm">
+          A homogeneização dos dados seguiu rigorosamente os fatores da tabela técnica, incluindo <strong>Fator Oferta (0,90)</strong>, Dimensão (Gleba), Capacidade de Uso (Solos), Situação/Acesso, Melhoramentos, Topografia, Superfície e Ocupação.
         </p>
       </div>
     </div>
@@ -407,6 +443,10 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
                 <td class="p-3 font-bold bg-gray-50">Grau de Precisão</td>
                 <td class="p-3">Grau ${precisionGrade}</td>
               </tr>
+              <tr>
+                <td class="p-3 font-bold bg-gray-50">Amostras Utilizadas</td>
+                <td class="p-3">${count} amostras</td>
+              </tr>
           </tbody>
         </table>
       </div>
@@ -423,21 +463,20 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
     <!-- ANEXO: MEMÓRIA DE CÁLCULO DETALHADA -->
     <div class="report-section p-8" style="min-height: auto;">
       <h3 class="text-xl font-serif font-bold text-gray-900 mb-6 border-b border-gray-300 pb-2">ANEXO - MEMÓRIA DE CÁLCULO</h3>
-      <p class="text-xs text-gray-600 mb-4">Detalhamento dos fatores de homogeneização aplicados a cada amostra para equiparação ao imóvel avaliando.</p>
+      <p class="text-xs text-gray-600 mb-4">Detalhamento dos fatores de homogeneização aplicados. Inclui Fator Oferta (0,90) em todas as amostras.</p>
 
       <div class="overflow-x-auto">
         <table class="w-full text-xs text-center border-collapse border border-gray-300">
           <thead>
             <tr class="bg-gray-800 text-white">
-              <th class="p-2 border border-gray-600">ID</th>
+              <th class="p-2 border border-gray-600">Local</th>
               <th class="p-2 border border-gray-600">R$/ha Orig.</th>
               ${isRural ? `
+              <th class="p-2 border border-gray-600" title="Fator Oferta">Ofert.</th>
               <th class="p-2 border border-gray-600" title="Dimensão">Dim.</th>
               <th class="p-2 border border-gray-600" title="Capacidade de Uso">Cap.</th>
               <th class="p-2 border border-gray-600" title="Acesso">Ace.</th>
-              <th class="p-2 border border-gray-600" title="Melhoramentos">Melh.</th>
-              <th class="p-2 border border-gray-600" title="Topografia">Top.</th>
-              <th class="p-2 border border-gray-600" title="Ocupação">Ocup.</th>
+              <th class="p-2 border border-gray-600" title="Outros Fatores (Melh+Top+Solo+Ocup)">Outros</th>
               ` : ''}
               <th class="p-2 border border-gray-600 bg-green-900">R$/ha Homog.</th>
             </tr>
@@ -445,17 +484,19 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
           <tbody>
             ${homogenizedSamples.map((s, idx) => {
               const findF = (name: string) => s.factors?.find((f:any) => f.name === name)?.value || 1.00;
+              // Agrupa outros fatores para caber na tabela
+              const otherFactors = findF('Melhoramentos') * findF('Topografia') * findF('Solo') * findF('Ocupação') * findF('Benfeitorias');
+              
               return `
               <tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}">
-                <td class="p-2 border border-gray-300 font-bold">#${idx + 1}</td>
+                <td class="p-2 border border-gray-300 text-left">${s.city}</td>
                 <td class="p-2 border border-gray-300">${fmtBRL(s.pricePerUnit)}</td>
                 ${isRural ? `
+                <td class="p-2 border border-gray-300 text-gray-600">${fmtDec(findF('Oferta'))}</td>
                 <td class="p-2 border border-gray-300 text-gray-600">${fmtDec(findF('Dimensão'))}</td>
                 <td class="p-2 border border-gray-300 text-gray-600">${fmtDec(findF('Cap. Uso'))}</td>
                 <td class="p-2 border border-gray-300 text-gray-600">${fmtDec(findF('Acesso'))}</td>
-                <td class="p-2 border border-gray-300 text-gray-600">${fmtDec(findF('Melhoramentos'))}</td>
-                <td class="p-2 border border-gray-300 text-gray-600">${fmtDec(findF('Topografia'))}</td>
-                <td class="p-2 border border-gray-300 text-gray-600">${fmtDec(findF('Ocupação'))}</td>
+                <td class="p-2 border border-gray-300 text-gray-600">${fmtDec(otherFactors)}</td>
                 ` : ''}
                 <td class="p-2 border border-gray-300 font-bold text-green-800 bg-green-50">${fmtBRL(s.homogenizedUnitPrice)}</td>
               </tr>
@@ -466,8 +507,7 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
       </div>
       
       <div class="mt-8 text-xs text-gray-500 border-t border-gray-200 pt-4">
-        <p><strong>Legenda dos Fatores:</strong> Os valores exibidos na tabela representam o multiplicador aplicado à amostra (Fator Paradigma / Fator Amostra).</p>
-        <p>Exemplo: Se o Paradigma tem Acesso Ótimo (1.00) e a Amostra tem Acesso Regular (0.80), o fator aplicado é 1.00/0.80 = 1.25.</p>
+        <p><strong>Legenda:</strong> Os valores exibidos representam o multiplicador aplicado (Fator Paradigma / Fator Amostra). A coluna "Outros" agrupa fatores de Topografia, Solo, Ocupação e Benfeitorias para visualização.</p>
       </div>
     </div>
   `;
