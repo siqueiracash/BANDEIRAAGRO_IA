@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { PropertyData, PropertyType, ValuationResult, GroundingSource } from "../types";
 
 // Helper to get API Key safely across different environments (Vite, Next.js, Node)
@@ -22,6 +22,38 @@ if (!apiKey) {
 }
 
 const ai = new GoogleGenAI({ apiKey: apiKey });
+
+/**
+ * Identifies neighboring cities for a given location to expand search scope.
+ */
+export const getNeighboringCities = async (city: string, state: string): Promise<string[]> => {
+  if (!apiKey) return [];
+
+  const modelId = "gemini-2.5-flash";
+  const prompt = `Quais são as 5 a 8 cidades mais importantes e próximas geograficamente de ${city} no estado de ${state}? Liste cidades que provavelmente tenham mercado imobiliário rural ativo. Retorne apenas os nomes das cidades.`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: modelId,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.STRING
+          }
+        } as Schema
+      }
+    });
+
+    const cities = JSON.parse(response.text || "[]");
+    return cities;
+  } catch (error) {
+    console.error("Erro ao buscar cidades vizinhas:", error);
+    return [];
+  }
+};
 
 /**
  * Generates a valuation report by searching for comparables and applying ABNT NBR 14653 logic.
