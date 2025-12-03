@@ -124,6 +124,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     }
   };
 
+  const isRural = form.type === PropertyType.RURAL;
+
   return (
     <div className="w-full max-w-6xl animate-fade-in pb-10">
       <div className="flex justify-between items-center mb-6">
@@ -198,7 +200,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                   </select>
                </div>
                <div>
-                  <label className="block text-sm font-bold mb-1">Área Total {form.type === PropertyType.RURAL ? '(ha)' : '(m²)'} *</label>
+                  <label className="block text-sm font-bold mb-1">Área Total {isRural ? '(ha)' : '(m²)'} *</label>
                   <input type="number" name="areaTotal" value={form.areaTotal || ''} onChange={handleChange} className="w-full border p-2 rounded" required />
                </div>
                <div>
@@ -208,9 +210,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             </div>
 
             {/* FORMULÁRIO RURAL ATUALIZADO */}
-            {form.type === PropertyType.RURAL && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded bg-green-50">
-                 <h3 className="md:col-span-2 font-bold text-green-800">Detalhes Rurais de Alta Precisão</h3>
+            {isRural && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded bg-green-50 mt-4 animate-fade-in">
+                 <h3 className="md:col-span-2 font-bold text-green-800 text-lg border-b border-green-200 pb-2">Detalhes Rurais de Alta Precisão</h3>
                  <div>
                     <label className="block text-xs font-bold text-gray-600 mb-1">Capacidade de Uso</label>
                     <select name="landCapability" value={form.landCapability} onChange={handleChange} className="w-full border p-2 rounded bg-white">
