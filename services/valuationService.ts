@@ -442,7 +442,7 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
           Este Laudo Técnico de Avaliação foi elaborado segundo os critérios da ABNT NBR 14653. As informações aqui contidas são verdadeiras e refletem a realidade de mercado na data presente.
         </p>
         <p class="text-gray-900 font-bold text-sm">
-          ${data.city} - ${data.state}, ${new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}.
+          Cuiabá - MT, ${new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}.
         </p>
 
         <div class="mt-16">
