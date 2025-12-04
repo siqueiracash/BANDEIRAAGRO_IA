@@ -7,44 +7,64 @@ const LOCAL_STORAGE_KEY_NAME = 'bandeira_agro_api_key';
 
 // Helper para obter a chave de API de forma robusta
 const getApiKey = (): string | undefined => {
+  let key: string | undefined = undefined;
+
   // 1. Tenta LocalStorage (Salva-vidas para ambientes estáticos/sem build)
   try {
     if (typeof localStorage !== 'undefined') {
       const localKey = localStorage.getItem(LOCAL_STORAGE_KEY_NAME);
-      if (localKey) return localKey;
+      if (localKey) key = localKey;
     }
   } catch (e) {
     // Ignora erro de acesso ao localStorage
   }
 
   // 2. Tenta padrão VITE (mais comum para React Apps modernos/Vercel)
-  try {
-    // @ts-ignore
-    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
+  if (!key) {
+    try {
       // @ts-ignore
-      return import.meta.env.VITE_API_KEY;
+      if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
+        // @ts-ignore
+        key = import.meta.env.VITE_API_KEY;
+      }
+    } catch (e) {
+      // Ignora erro se import.meta não existir
     }
-  } catch (e) {
-    // Ignora erro se import.meta não existir
   }
 
   // 3. Tenta process.env (Node.js ou Webpack com polyfill)
-  try {
-    if (typeof process !== 'undefined' && process.env) {
-      // Tenta variações comuns
-      return process.env.API_KEY || process.env.VITE_API_KEY || process.env.REACT_APP_API_KEY;
+  if (!key) {
+    try {
+      if (typeof process !== 'undefined' && process.env) {
+        // Tenta variações comuns
+        key = process.env.API_KEY || process.env.VITE_API_KEY || process.env.REACT_APP_API_KEY;
+      }
+    } catch (e) {
+      // Ignora erro se process não existir
     }
-  } catch (e) {
-    // Ignora erro se process não existir
   }
 
-  return undefined;
+  // Limpeza final e validação básica
+  if (key) {
+      key = key.trim();
+      // Remove aspas extras se houver (comum em arquivos .env mal formatados)
+      if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {
+          key = key.slice(1, -1);
+      }
+  }
+  
+  return key;
 };
 
-// Helper para instanciar o cliente IA
-const getAiClient = () => {
-  const apiKey = getApiKey();
-  return new GoogleGenAI({ apiKey: apiKey || '' });
+const validateKey = (key: string | undefined) => {
+    if (!key) {
+        console.error("FATAL: Nenhuma API KEY encontrada (LocalStorage, VITE_API_KEY ou API_KEY).");
+        throw new Error("API_KEY_MISSING");
+    }
+    if (!key.startsWith("AIza")) {
+        console.error("FATAL: Formato de chave inválido. A chave deve começar com 'AIza'. Chave atual inicia com:", key.substring(0, 4));
+        throw new Error("INVALID_KEY_FORMAT");
+    }
 };
 
 /**
@@ -52,7 +72,10 @@ const getAiClient = () => {
  */
 export const getNeighboringCities = async (city: string, state: string): Promise<string[]> => {
   const apiKey = getApiKey();
-  if (!apiKey) return [];
+  if (!apiKey) return []; // Silently fail if no key, as this is optional
+
+  // Validação básica sem throw para não quebrar fluxo opcional
+  if (!apiKey.startsWith("AIza")) return [];
 
   const ai = new GoogleGenAI({ apiKey });
   const modelId = "gemini-2.5-flash";
@@ -84,12 +107,9 @@ export const getNeighboringCities = async (city: string, state: string): Promise
  */
 export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample[]> => {
   const apiKey = getApiKey();
+  validateKey(apiKey);
 
-  if (!apiKey) {
-    console.error("FATAL: Nenhuma API KEY encontrada (LocalStorage, VITE_API_KEY ou API_KEY).");
-    throw new Error("API_KEY_MISSING");
-  }
-
+  // @ts-ignore - Garantido pelo validateKey
   const ai = new GoogleGenAI({ apiKey });
   const modelId = "gemini-2.5-flash";
 
@@ -194,8 +214,14 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
 
     return samples.filter(s => s.price > 0 && s.areaTotal > 0);
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Erro ao buscar amostras urbanas via IA:", error);
+    
+    // Tratamento específico para erro de permissão (403)
+    if (error.message?.includes('403') || error.toString().includes('403') || error.status === 403) {
+      throw new Error("API_KEY_RESTRICTION");
+    }
+    
     throw error; 
   }
 };

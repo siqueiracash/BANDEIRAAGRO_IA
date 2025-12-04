@@ -44,17 +44,36 @@ const App: React.FC = () => {
       
       if (msg.includes("API_KEY_MISSING")) {
         alert(
-          "ERRO DE CONFIGURAÇÃO DA CHAVE API\n\n" +
-          "O sistema não conseguiu ler a Chave de API das variáveis de ambiente (comum em deploys estáticos).\n\n" +
-          "SOLUÇÃO RÁPIDA (FAÇA ISSO AGORA):\n" +
-          "1. Pressione F12 para abrir o Console do navegador.\n" +
-          "2. Digite ou cole o comando abaixo e aperte Enter:\n\n" +
-          "localStorage.setItem('bandeira_agro_api_key', 'SUA-CHAVE-AQUI')\n\n" +
-          "3. Substitua 'SUA-CHAVE-AQUI' pela sua chave real AIza...\n" +
-          "4. Recarregue a página e tente novamente."
+          "CONFIGURAÇÃO DE API NECESSÁRIA\n\n" +
+          "O sistema não encontrou a chave da API. Se você configurou na Vercel:\n" +
+          "1. Ignore o aviso amarelo 'This key... might expose sensitive information' na Vercel. Ele é normal.\n" +
+          "2. Certifique-se que o nome da variável é VITE_API_KEY.\n" +
+          "3. Faça um novo Deploy no painel da Vercel para aplicar a mudança.\n\n" +
+          "SOLUÇÃO PALIATIVA (Se precisar usar AGORA):\n" +
+          "Abra o Console (F12) e digite:\n" +
+          "localStorage.setItem('bandeira_agro_api_key', 'SUA-CHAVE-AQUI')"
+        );
+      } else if (msg.includes("INVALID_KEY_FORMAT")) {
+        alert(
+            "CHAVE DE API INVÁLIDA\n\n" +
+            "A chave que você está usando NÃO é do Gemini/AI Studio. Você provavelmente pegou uma chave do Vertex AI ou Service Account (começando com AQ...).\n\n" +
+            "SOLUÇÃO:\n" +
+            "1. Acesse https://aistudiocdn.com/app/apikey\n" +
+            "2. Crie uma nova chave. Ela DEVE começar com 'AIza'.\n" +
+            "3. Atualize a Vercel com essa nova chave."
+        );
+      } else if (msg.includes("API_KEY_RESTRICTION") || msg.includes("403")) {
+        alert(
+          "BLOQUEIO DE SEGURANÇA (ERRO 403)\n\n" +
+          "Você restringiu a Chave de API para 'Sites da Web', mas esqueceu de adicionar este domínio.\n\n" +
+          "SOLUÇÃO:\n" +
+          "1. Vá no Google Cloud Console > Credenciais > Sua Chave.\n" +
+          "2. Em 'Restrições de sites', adicione:\n" +
+          "   https://bandeiraagro-ia.vercel.app/*\n" +
+          "3. Salve e aguarde 2 minutos."
         );
       } else {
-        alert(`Erro ao processar a avaliação: ${msg}\n\nTente novamente ou verifique os dados de entrada.`);
+        alert(`Erro ao processar a avaliação: ${msg}\n\nTente novamente.`);
       }
       
       setCurrentStep(AppStep.FORM);
