@@ -123,6 +123,7 @@ const StepForm: React.FC<StepFormProps> = ({ propertyType, initialData, onSubmit
                 <label className="block text-sm font-bold text-gray-800 mb-1">Atividade Principal</label>
                 <select name="ruralActivity" value={formData.ruralActivity} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white">
                   <option value="Lavoura">Lavoura</option>
+                  <option value="Pecuária">Pecuária</option>
                   <option value="Pasto">Pasto</option>
                   <option value="Floresta">Floresta</option>
                   <option value="Cerrado Nativo">Cerrado Nativo</option>
