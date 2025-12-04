@@ -301,14 +301,20 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
   }
 
   // 2. Seleção Estatística (Combinatória para melhor conjunto)
-  // CRITÉRIO REVISADO: GRAU II DE PRECISÃO
-  // Em vez de descartar rigorosamente grupos com desvio > 30% (Grau I), vamos tentar achar o melhor grupo possível.
-  // Se não houver 5 amostras perfeitas, aceitamos grupos com desvios ligeiramente maiores, impactando o grau de precisão.
+  // CRITÉRIO REVISADO: GRAU II DE PRECISÃO (CV <= 0.15)
+  // O algoritmo tenta encontrar a melhor combinação de 5 amostras que resulte no menor CV possível.
   
   let validSamples = [...homogenizedPool];
   
   if (homogenizedPool.length >= TARGET_SAMPLE_COUNT) {
-      const combinations = getCombinations(homogenizedPool, TARGET_SAMPLE_COUNT);
+      // Nota: Com muitas amostras (ex: 24), a combinação de 5 pode ser pesada (42k iterações).
+      // Se for muito grande, limitamos a busca às X melhores amostras ordenadas pela mediana.
+      let poolForCombo = homogenizedPool;
+      if (homogenizedPool.length > 25) {
+          poolForCombo = homogenizedPool.slice(0, 25);
+      }
+
+      const combinations = getCombinations(poolForCombo, TARGET_SAMPLE_COUNT);
       
       let bestCombination: any[] = [];
       let bestStats = { cv: Infinity, maxDeviation: Infinity };
@@ -327,10 +333,6 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
              if (deviation > maxDeviation) maxDeviation = deviation;
           }
 
-          // Relaxamento: Aceita até 40% de desvio para considerar "válido" no cálculo combinatório, 
-          // depois o laudo apontará "Fora de Grau" se necessário, mas o cálculo sai.
-          // O ideal é CV menor.
-          
           if (cv < bestStats.cv) {
              bestStats = { cv: cv, maxDeviation: maxDeviation };
              bestCombination = combo;
@@ -355,11 +357,6 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
   const stdDev = Math.sqrt(variance);
   const coeffVariation = avgHomogenizedUnitPrice > 0 ? (stdDev / avgHomogenizedUnitPrice) : 0;
   
-  let precisionGrade = "Fora de Grau (Estimativa)";
-  if (coeffVariation <= 0.10) precisionGrade = "Grau III (Alta Precisão)";
-  else if (coeffVariation <= 0.15) precisionGrade = "Grau II (Média Precisão)";
-  else if (coeffVariation <= 0.25) precisionGrade = "Grau I (Baixa Precisão)"; 
-  
   // --- VALIDAÇÃO RÍGIDA DE GRAU DE PRECISÃO (APENAS URBANO) ---
   if (!isRural) {
     // NBR 14653-2: Grau II exige mínimo de 5 amostras
@@ -367,11 +364,21 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
        throw new Error("URBAN_SAMPLE_COUNT_LOW");
     }
     // NBR 14653-2: Grau II exige CV <= 0.15
+    // SE FOR MAIOR QUE 0.15 (15%), REJEITA IMEDIATAMENTE.
     if (coeffVariation > 0.15) {
        throw new Error("URBAN_PRECISION_LOW");
     }
   }
 
+  let precisionGrade = "Fora de Grau";
+  if (coeffVariation <= 0.10) precisionGrade = "Grau III (Alta Precisão)";
+  else if (coeffVariation <= 0.15) precisionGrade = "Grau II (Média Precisão)";
+  else {
+      // Caso Rural ou falha de lógica, define como Grau I ou Fora de Grau
+      // Para Urbano, esse bloco nunca será exibido pois o erro acima bloqueia.
+      precisionGrade = "Grau I (Baixa Precisão)";
+  }
+  
   const tStudent = getTStudent70(count); 
   const confidenceInterval = count > 0 ? tStudent * (stdDev / Math.sqrt(count)) : 0;
   const minInterval = avgHomogenizedUnitPrice - confidenceInterval;

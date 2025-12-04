@@ -130,25 +130,30 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
   const searchQuery = `${portals} comprar ${data.urbanSubType} "${data.neighborhood}" ${data.city} ${data.state} "${streetName}"`;
 
   const prompt = `
-    Atue como um Engenheiro de Avaliações Sênior.
-    O usuário precisa encontrar amostras comparáveis para um imóvel urbano.
+    Atue como um Engenheiro de Avaliações Sênior especialista em NBR 14653.
+    O usuário precisa encontrar amostras comparáveis para um imóvel urbano com ALTA PRECISÃO (Grau II ou III).
     
     QUERY DE BUSCA EXECUTADA: "${searchQuery}"
     
     OBJETIVO:
-    Encontrar de 12 a 15 amostras de ofertas ATUAIS nos portais listados (Imovelweb, Zap, VivaReal, etc).
+    Encontrar de 18 a 24 amostras de ofertas ATUAIS nos portais listados.
+    QUANTO MAIS AMOSTRAS, MELHOR A PRECISÃO DO LAUDO.
+    
+    CRITÉRIO DE HOMOGENEIDADE (CRUCIAL):
+    - Busque imóveis com padrão construtivo e localização MUITO SEMELHANTES.
+    - Evite amostras com preços muito discrepantes (outliers) que prejudiquem o Coeficiente de Variação.
     
     DADOS DO IMÓVEL AVALIANDO:
     - Tipo: ${data.urbanSubType}
     - Bairro Alvo: ${data.neighborhood} (Prioridade TOTAL)
-    - Rua Alvo: ${streetName} (Desejável, mas se não achar, pegue no mesmo BAIRRO)
+    - Rua Alvo: ${streetName} (Desejável)
     - Cidade: ${data.city}
     
     INSTRUÇÕES RÍGIDAS:
     1. PRIORIDADE: Tente encontrar imóveis na Rua "${streetName}".
-    2. FALLBACK: Se houver poucas ou nenhuma opção na rua exata, LISTE IMÓVEIS NO BAIRRO "${data.neighborhood}". O Bairro é o fator de homogeneização principal.
+    2. FALLBACK: Se houver poucas ou nenhuma opção na rua exata, LISTE IMÓVEIS NO BAIRRO "${data.neighborhood}".
     3. NÃO INVENTE DADOS. Extraia o preço e área do snippet da busca.
-    4. Se o link for direto de um portal (ex: imovelweb.com.br/propriedade...), preserve-o.
+    4. Ignore leilões ou preços simbólicos (ex: R$ 1,00).
     
     SAÍDA JSON OBRIGATÓRIA:
     Retorne APENAS um array JSON. Sem markdown.
@@ -233,8 +238,6 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
       }
 
       // 3. FALLBACK DE SEGURANÇA (IMPORTANTE):
-      // Se não garantimos o link direto, geramos um link de BUSCA Google específico para este imóvel.
-      // Isso permite que o usuário clique e veja o anúncio no topo do Google, mesmo que a URL direta tenha falhado.
       if (!finalUrl || isGarbage) {
           const query = encodeURIComponent(`site:imovelweb.com.br OR site:zapimoveis.com.br OR site:vivareal.com.br ${s.urbanSubType} ${s.neighborhood} ${data.city} ${s.price}`);
           finalUrl = `https://www.google.com/search?q=${query}`;
