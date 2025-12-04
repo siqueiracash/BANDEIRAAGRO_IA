@@ -1,25 +1,8 @@
-import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { PropertyData, PropertyType, ValuationResult, GroundingSource, MarketSample } from "../types";
+import { GoogleGenAI } from "@google/genai";
+import { PropertyData, PropertyType, MarketSample } from "../types";
 
-// Helper to get API Key safely across different environments (Vite, Next.js, Node)
-const getApiKey = () => {
-  // @ts-ignore - Vite uses import.meta.env
-  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
-    // @ts-ignore
-    return import.meta.env.VITE_API_KEY;
-  }
-  // Standard Node/Webpack process.env
-  if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
-    return process.env.API_KEY;
-  }
-  return '';
-};
-
-const apiKey = getApiKey();
-
-if (!apiKey) {
-  console.warn("API Key não encontrada. Configure VITE_API_KEY no arquivo .env");
-}
+// Acessa a chave diretamente do ambiente, conforme padrão da plataforma.
+const apiKey = process.env.API_KEY;
 
 const ai = new GoogleGenAI({ apiKey: apiKey });
 
@@ -33,22 +16,23 @@ export const getNeighboringCities = async (city: string, state: string): Promise
   const prompt = `Quais são as 5 a 8 cidades mais importantes e próximas geograficamente de ${city} no estado de ${state}? Liste cidades que provavelmente tenham mercado imobiliário rural ativo. Retorne apenas os nomes das cidades.`;
 
   try {
+    // Para tarefas simples de texto sem ferramentas, podemos usar responseSchema se quisermos JSON,
+    // mas aqui manteremos simples para evitar conflitos.
     const response = await ai.models.generateContent({
       model: modelId,
       contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.STRING
-          }
-        } as Schema
-      }
     });
-
-    const cities = JSON.parse(response.text || "[]");
-    return cities;
+    
+    // Tenta limpar o texto caso venha com markdown
+    const cleanText = response.text ? response.text.replace(/```json/g, '').replace(/```/g, '').trim() : "[]";
+    
+    try {
+        const cities = JSON.parse(cleanText);
+        return Array.isArray(cities) ? cities : [];
+    } catch {
+        // Se falhar o parse, retorna array vazio (fallback silencioso)
+        return [];
+    }
   } catch (error) {
     console.error("Erro ao buscar cidades vizinhas:", error);
     return [];
@@ -60,15 +44,16 @@ export const getNeighboringCities = async (city: string, state: string): Promise
  */
 export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample[]> => {
   if (!apiKey) {
-    throw new Error("Chave de API não configurada.");
+    console.error("FATAL: API_KEY não encontrada em process.env");
+    throw new Error("Chave de API não configurada. Se estiver rodando localmente, verifique seu arquivo .env.");
   }
 
   const modelId = "gemini-2.5-flash";
 
   // Construct a specific search query incl. new fields
-  const searchQuery = `venda ${data.urbanSubType} ${data.neighborhood ? `bairro ${data.neighborhood}` : ''} ${data.city} ${data.state} ${data.bedrooms ? data.bedrooms + ' quartos' : ''} ${data.bathrooms ? data.bathrooms + ' banheiros' : ''} ${data.parking ? data.parking + ' vagas' : ''} ${data.areaTotal}m2 preço valor`;
+  const searchQuery = `venda imóvel ${data.urbanSubType} ${data.neighborhood ? `bairro ${data.neighborhood}` : ''} ${data.city} ${data.state} ${data.bedrooms ? data.bedrooms + ' quartos' : ''} ${data.bathrooms ? data.bathrooms + ' banheiros' : ''} ${data.areaTotal}m2 preço valor`;
 
-  // Updated Prompt: Explicitly asks for JSON string in natural language, no schema enforcement via API config to avoid conflict with tools.
+  // Updated Prompt: Explicitly asks for JSON string in natural language
   const prompt = `
     Atue como um Engenheiro de Avaliações.
     Utilize a ferramenta de BUSCA DO GOOGLE (Google Search) para encontrar e estruturar 5 a 8 ofertas REAIS e ATUAIS de imóveis semelhantes ao descrito.
@@ -89,7 +74,7 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
     5. O "url" deve ser o link direto para o anúncio encontrado.
 
     SAÍDA OBRIGATÓRIA:
-    Retorne APENAS um array JSON cru. NÃO use formatação Markdown (sem \`\`\`json). Apenas o texto JSON.
+    Retorne APENAS um array JSON válido. NÃO use formatação Markdown (sem \`\`\`json). Apenas o texto JSON cru.
     
     Exemplo de formato:
     [
@@ -117,18 +102,21 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
       }
     });
 
-    let text = response.text || "[]";
-    
+    // Log para debug da resposta bruta (útil para desenvolvimento)
+    console.log("Gemini Response Raw:", response.text);
+
     // Limpeza de segurança caso o modelo insira blocos de código Markdown
+    let text = response.text || "[]";
     text = text.replace(/```json/g, '').replace(/```/g, '').trim();
 
-    // Tentativa de Parse
+    // Extração robusta do JSON
     let rawSamples = [];
+    
+    // Tenta parse direto
     try {
         rawSamples = JSON.parse(text);
     } catch (e) {
-        console.warn("Falha ao fazer parse do JSON retornado pela IA. Tentando extrair array com regex.", text);
-        // Fallback: tenta encontrar o array JSON dentro do texto
+        // Fallback: tenta encontrar o array JSON dentro do texto usando Regex
         const jsonMatch = text.match(/\[.*\]/s);
         if (jsonMatch) {
             try {
@@ -140,6 +128,7 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
     }
 
     if (!Array.isArray(rawSamples)) {
+        console.warn("IA não retornou um array válido:", rawSamples);
         return [];
     }
 
@@ -152,8 +141,8 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
       city: data.city,
       state: data.state,
       neighborhood: data.neighborhood,
-      price: typeof s.price === 'string' ? parseFloat(s.price.replace(/[^0-9.]/g, '')) : s.price,
-      areaTotal: typeof s.areaTotal === 'string' ? parseFloat(s.areaTotal.replace(/[^0-9.]/g, '')) : s.areaTotal,
+      price: typeof s.price === 'string' ? parseFloat(s.price.replace(/[^0-9.]/g, '')) : Number(s.price),
+      areaTotal: typeof s.areaTotal === 'string' ? parseFloat(s.areaTotal.replace(/[^0-9.]/g, '')) : Number(s.areaTotal),
       areaBuilt: s.areaTotal, 
       pricePerUnit: (typeof s.price === 'number' && typeof s.areaTotal === 'number') ? s.price / s.areaTotal : 0,
       date: new Date().toISOString(),
@@ -165,11 +154,12 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
       conservationState: 'Bom' 
     }));
 
-    // Filter out invalid samples
+    // Filter out invalid samples (price or area missing)
     return samples.filter(s => s.price > 0 && s.areaTotal > 0);
 
   } catch (error) {
     console.error("Erro ao buscar amostras urbanas via IA:", error);
-    return []; 
+    // Relançar o erro para o App.tsx tratar
+    throw error; 
   }
 };
