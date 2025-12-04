@@ -113,42 +113,58 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
   const ai = new GoogleGenAI({ apiKey });
   const modelId = "gemini-2.5-flash";
 
-  // Construct a specific search query incl. new fields
-  const searchQuery = `venda imóvel ${data.urbanSubType} ${data.neighborhood ? `bairro ${data.neighborhood}` : ''} ${data.city} ${data.state} ${data.bedrooms ? data.bedrooms + ' quartos' : ''} ${data.bathrooms ? data.bathrooms + ' banheiros' : ''} ${data.areaTotal}m2 preço valor`;
+  // --- ESTRATÉGIA DE BUSCA REFINADA ---
+  // 1. Extrair nome da rua limpo (sem número) para forçar proximidade
+  let streetName = "";
+  if (data.address) {
+    // Pega tudo antes da primeira vírgula ou número
+    streetName = data.address.split(',')[0].split('-')[0].trim();
+  }
+
+  // 2. Construir Query Hierárquica: Rua -> Bairro -> Cidade
+  // Usar aspas no Bairro ajuda o Google a ser exato
+  const searchQuery = `comprar ${data.urbanSubType} "${streetName}" "${data.neighborhood}" ${data.city} ${data.state} ${data.bedrooms ? data.bedrooms + ' quartos' : ''} ${data.areaTotal}m2`;
 
   // Updated Prompt: Explicitly asks for JSON string in natural language
   const prompt = `
-    Atue como um Engenheiro de Avaliações.
-    Utilize a ferramenta de BUSCA DO GOOGLE (Google Search) para encontrar e estruturar 5 a 8 ofertas REAIS e ATUAIS de imóveis semelhantes ao descrito.
+    Atue como um Engenheiro de Avaliações rigoroso.
+    Utilize a ferramenta de BUSCA DO GOOGLE (Google Search) para encontrar e estruturar 5 a 8 ofertas REAIS e ATUAIS.
     
-    QUERY DE BUSCA SUGERIDA: "${searchQuery}"
+    QUERY DE BUSCA: "${searchQuery}"
     
-    IMÓVEL AVALIANDO:
+    DADOS DO IMÓVEL AVALIANDO (ALVO):
     - Tipo: ${data.urbanSubType}
-    - Local: ${data.neighborhood || 'Centro'}, ${data.city} - ${data.state}
-    - Área: ${data.areaTotal} m²
-    - Quartos: ${data.bedrooms || 0}, Banheiros: ${data.bathrooms || 0}, Vagas: ${data.parking || 0}
+    - Rua (Prioridade Máxima): ${streetName}
+    - Bairro (Obrigatório): ${data.neighborhood}
+    - Cidade: ${data.city} - ${data.state}
+    - Área Alvo: ${data.areaTotal} m²
+    
+    CRITÉRIOS DE LOCALIZAÇÃO (IMPORTANTE):
+    1. A busca deve começar pela RUA ("${streetName}"). Tente encontrar imóveis na mesma rua ou ruas transversais.
+    2. Se não houver na rua, busque estritamente no BAIRRO "${data.neighborhood}".
+    3. REJEITE bairros com nomes parecidos mas que são locais diferentes (Ex: Se busco "Vila João", rejeite "Parque João"). A localização deve ser exata.
     
     REGRAS DE EXTRAÇÃO:
-    1. Pesquise em sites reais (Zap, VivaReal, OLX, etc).
+    1. Pesquise em sites reais (Zap, VivaReal, OLX, Chaves na Mão, etc).
     2. Extraia o Preço, Área Total, Quartos, Banheiros, Vagas, Endereço e Link (URL).
     3. Se não encontrar o número exato de quartos/vagas, aproxime ou deixe 0.
     4. O "source" deve ser o nome do portal (ex: VivaReal).
     5. O "url" deve ser o link direto para o anúncio encontrado.
 
     SAÍDA OBRIGATÓRIA:
-    Retorne APENAS um array JSON válido. NÃO use formatação Markdown (sem \`\`\`json). Apenas o texto JSON cru.
+    Retorne APENAS um array JSON válido contendo os dados. NÃO use formatação Markdown.
     
     Exemplo de formato:
     [
       {
-        "title": "Apartamento a venda...",
+        "title": "Apartamento na Rua das Flores...",
         "price": 500000,
         "areaTotal": 80,
         "bedrooms": 2,
         "bathrooms": 2,
         "parking": 1,
-        "address": "Rua X, Bairro Y",
+        "address": "Rua das Flores, Vila Mariana",
+        "neighborhood": "Vila Mariana",
         "source": "Portal Z",
         "url": "https://..."
       }
@@ -160,13 +176,21 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
       model: modelId,
       contents: prompt,
       config: {
-        tools: [{ googleSearch: {} }]
+        tools: [{ googleSearch: {} }],
+        // Safety Settings ajustados para permitir endereços comerciais que as vezes caem em filtros
+        safetySettings: [
+            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+        ]
       }
     });
 
     console.log("Gemini Response Raw:", response.text);
 
     let text = response.text || "[]";
+    // Limpeza agressiva para garantir JSON puro
     text = text.replace(/```json/g, '').replace(/```/g, '').trim();
 
     let rawSamples = [];
@@ -194,10 +218,10 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
       id: `ai-sample-${Date.now()}-${index}`,
       type: PropertyType.URBAN,
       title: s.title || `${data.urbanSubType} em ${data.city}`,
-      address: s.address || data.city,
+      address: s.address || (s.neighborhood ? `${s.neighborhood}, ${data.city}` : data.city),
       city: data.city,
       state: data.state,
-      neighborhood: data.neighborhood,
+      neighborhood: s.neighborhood || data.neighborhood, // Tenta pegar o bairro que a IA achou
       price: typeof s.price === 'string' ? parseFloat(s.price.replace(/[^0-9.]/g, '')) : Number(s.price),
       areaTotal: typeof s.areaTotal === 'string' ? parseFloat(s.areaTotal.replace(/[^0-9.]/g, '')) : Number(s.areaTotal),
       areaBuilt: s.areaTotal, 
@@ -212,6 +236,7 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
       conservationState: 'Bom' 
     }));
 
+    // Filtragem de segurança: Remover amostras com preço ou área zerados
     return samples.filter(s => s.price > 0 && s.areaTotal > 0);
 
   } catch (error: any) {
