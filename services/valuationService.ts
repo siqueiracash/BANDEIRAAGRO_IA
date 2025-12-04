@@ -143,9 +143,9 @@ const calculateSimilarity = (target: PropertyData, sample: MarketSample): number
     // Bonificação para urbanos
     // Quartos
     if (target.bedrooms && Math.abs(target.bedrooms - (sample.bedrooms || 0)) <= 1) score += 30;
-    // Banheiros
+    // Banheiros (Novo)
     if (target.bathrooms && Math.abs(target.bathrooms - (sample.bathrooms || 0)) <= 1) score += 20;
-    // Vagas
+    // Vagas (Novo)
     if (target.parking && Math.abs(target.parking - (sample.parking || 0)) <= 1) score += 20;
     
     if (target.conservationState === sample.conservationState) score += 30;
@@ -190,6 +190,8 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
     
   const isRural = data.type === PropertyType.RURAL;
   const unitStr = isRural ? 'ha' : 'm²';
+  const normName = isRural ? 'NBR 14653-3 (Imóveis Rurais)' : 'NBR 14653-2 (Imóveis Urbanos)';
+  
   const OFFER_FACTOR = 0.90; // Fator de Oferta Obrigatório
   const TARGET_SAMPLE_COUNT = 5;
 
@@ -326,8 +328,11 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
 
   const marketValue = avgHomogenizedUnitPrice * refArea;
 
+  // Lógica de Liquidação Forçada diferenciada
+  // Urbano: 18 meses
+  // Rural: 24 meses (mantido como estava para Rural)
   const liquidityRate = 0.0151; 
-  const liquidityMonths = 24;
+  const liquidityMonths = isRural ? 24 : 18;
   const liquidityFactor = 1 / Math.pow(1 + liquidityRate, liquidityMonths);
   const liquidationValue = marketValue * liquidityFactor;
 
@@ -447,7 +452,7 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
        <div class="mb-8">
          <h3 class="text-lg font-serif font-bold text-gray-800 mb-4">METODOLOGIA GERAL DE AVALIAÇÃO</h3>
          <p class="mb-4 text-gray-700">
-            De acordo com a Norma da ABNT NBR 14653 o terreno será avaliado com base no "Método Comparativo de Dados de Mercado", através de dados de mercado de imóveis semelhantes ao avaliando, à venda ou efetivamente transacionados no livre mercado imobiliário da região.
+            De acordo com a Norma da ABNT ${normName} o terreno será avaliado com base no "Método Comparativo de Dados de Mercado", através de dados de mercado de imóveis semelhantes ao avaliando, à venda ou efetivamente transacionados no livre mercado imobiliário da região.
          </p>
        </div>
 
@@ -487,12 +492,12 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
              <strong>Taxa Média de Juros:</strong> Para o cálculo da taxa média de juros foi adotada a série composta pelas linhas de crédito de mercado. A taxa mensal média de juros obtida foi igual a <strong>1,51%</strong>.
           </p>
           <p class="text-gray-700 mb-12">
-             <strong>Tempo de Absorção:</strong> Estimado em <strong>24 meses</strong> para imóveis análogos.
+             <strong>Tempo de Absorção:</strong> Estimado em <strong>${liquidityMonths} meses</strong> para imóveis análogos.
           </p>
           
           <div class="bg-gray-100 p-4 rounded border border-gray-300 text-center max-w-lg mx-auto mt-8">
              <p class="font-bold text-gray-800 mb-2">Fórmula de Deságio</p>
-             <p class="font-mono text-sm">Valor Liquidação = Valor Mercado × (1 / (1 + 0,0151)^24)</p>
+             <p class="font-mono text-sm">Valor Liquidação = Valor Mercado × (1 / (1 + 0,0151)^${liquidityMonths})</p>
              <p class="font-mono text-sm mt-1">Fator = ${fmtDec(liquidityFactor, 4)}</p>
           </div>
           
@@ -526,7 +531,7 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
                           <span class="font-bold text-green-800 block text-xs uppercase mb-1">Localização</span> ${s.city}
                       </div>
                       <div class="p-3 border-b border-gray-300 bg-gray-50">
-                          <span class="font-bold text-green-800 block text-xs uppercase mb-1">Fonte</span> <span class="text-blue-700 break-words">${s.source || 'Pesquisa de Mercado'}</span>
+                          <span class="font-bold text-green-800 block text-xs uppercase mb-1">Fonte</span> <span class="text-blue-700 break-words text-[10px]">${s.source || 'Pesquisa de Mercado'}</span>
                       </div>
                       <div class="p-3 border-r border-b border-gray-300">
                            <span class="font-bold text-green-800 block text-xs uppercase mb-1">Área Total</span> ${fmtDec(s.areaTotal)} ${unitStr}
@@ -689,7 +694,7 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
        </p>
        
        <p class="mb-4 text-gray-700">
-         Ressalva-se que o presente trabalho foi realizado seguindo os preceitos metodológicos da ABNT NBR 14653-3 (Imóveis Rurais) e/ou NBR 14653-2 (Imóveis Urbanos), contudo, enquadra-se na modalidade <strong>"Avaliação Expedita" (Desktop Valuation)</strong>, sendo realizado <strong>sem vistoria <em>in loco</em></strong> ao imóvel avaliando.
+         Ressalva-se que o presente trabalho foi realizado seguindo os preceitos metodológicos da ABNT ${normName}, contudo, enquadra-se na modalidade <strong>"Avaliação Expedita" (Desktop Valuation)</strong>, sendo realizado <strong>sem vistoria <em>in loco</em></strong> ao imóvel avaliando.
        </p>
        
        <p class="mb-4 text-gray-700">

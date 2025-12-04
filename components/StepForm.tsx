@@ -69,7 +69,7 @@ const StepForm: React.FC<StepFormProps> = ({ propertyType, initialData, onSubmit
           Dados do {isRural ? 'Imóvel Rural' : 'Imóvel Urbano'}
         </h2>
         <p className="text-sm text-gray-500">
-          Preencha rigorosamente as características para aumentar a precisão da avaliação conforme NBR 14653-3.
+          Preencha rigorosamente as características para aumentar a precisão da avaliação conforme NBR 14653.
         </p>
       </div>
 
@@ -100,7 +100,7 @@ const StepForm: React.FC<StepFormProps> = ({ propertyType, initialData, onSubmit
           </div>
         </div>
 
-        {/* MUDANÇA: Campo Bairro movido para cá se for Urbano */}
+        {/* MUDANÇA: Campo Bairro movido para cá se for Urbano (Logo abaixo de Cidade) */}
         {!isRural && (
           <div className="md:col-span-3">
              <label className="block text-sm font-medium text-gray-700 mb-1">Bairro *</label>
@@ -273,7 +273,6 @@ const StepForm: React.FC<StepFormProps> = ({ propertyType, initialData, onSubmit
                    <label className="block text-sm font-bold text-gray-700 mb-1">Área Total (m²)</label>
                    <input type="number" name="areaTotal" required min="0" value={formData.areaTotal || ''} className="w-full border border-gray-300 rounded-lg px-3 py-2" onChange={handleChange} />
                 </div>
-                {/* Bairro foi movido para o topo */}
                 
                 {/* MUDANÇA: Campos de Quartos, Banheiros e Vagas em Grid */}
                 <div className="md:col-span-2 grid grid-cols-3 gap-4">
@@ -312,7 +311,7 @@ const StepForm: React.FC<StepFormProps> = ({ propertyType, initialData, onSubmit
           </button>
           
           <button type="submit" className="w-full md:w-2/3 bg-agro-700 hover:bg-agro-900 text-white font-bold py-4 rounded-xl shadow-md flex justify-center items-center">
-            Gerar Avaliação (NBR 14653-3)
+            Gerar Avaliação (NBR 14653)
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6 ml-2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
             </svg>
