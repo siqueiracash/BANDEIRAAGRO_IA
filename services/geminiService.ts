@@ -125,11 +125,9 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
   // Usar aspas no Bairro ajuda o Google a ser exato
   const searchQuery = `comprar ${data.urbanSubType} "${streetName}" "${data.neighborhood}" ${data.city} ${data.state} ${data.bedrooms ? data.bedrooms + ' quartos' : ''} ${data.areaTotal}m2`;
 
-  // Updated Prompt: Increase requested samples to 10-15 to allow outlier filtering
   const prompt = `
     Atue como um Engenheiro de Avaliações rigoroso.
     Utilize a ferramenta de BUSCA DO GOOGLE (Google Search) para encontrar e estruturar 10 a 15 ofertas REAIS e ATUAIS.
-    Preciso de um volume maior de amostras para poder descartar as que tiverem preço muito discrepante (outliers).
     
     QUERY DE BUSCA: "${searchQuery}"
     
@@ -150,7 +148,7 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
     2. Extraia o Preço, Área Total, Quartos, Banheiros, Vagas, Endereço e Link (URL).
     3. Se não encontrar o número exato de quartos/vagas, aproxime ou deixe 0.
     4. O "source" deve ser o nome do portal (ex: VivaReal).
-    5. O "url" deve ser o link direto para o anúncio encontrado. **IMPORTANTE: Forneça a URL completa (http...). Não use links internos do tipo /grounding-api-redirect.**
+    5. O "url" deve ser o link direto para o anúncio encontrado. **Tente pegar a URL real.**
 
     SAÍDA OBRIGATÓRIA:
     Retorne APENAS um array JSON válido contendo os dados. NÃO use formatação Markdown.
@@ -178,7 +176,7 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
-        // Safety Settings ajustados para permitir endereços comerciais que as vezes caem em filtros
+        // Safety Settings ajustados para permitir endereços comerciais
         safetySettings: [
             { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
             { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
@@ -188,11 +186,8 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
       }
     });
 
-    console.log("Gemini Response Raw:", response.text);
-
-    // --- CORREÇÃO DE LINKS VIA GROUNDING METADATA ---
-    // A IA muitas vezes alucina links no texto JSON, mas os links reais estão no metadata.
-    // Vamos extrair os links REAIS retornados pelo Google Search.
+    // --- CORREÇÃO DE LINKS VIA GROUNDING METADATA (TOLERÂNCIA ZERO PARA ERROS) ---
+    // A IA frequentemente alucina URLs quebradas. Só aceitaremos URLs que o Google Search confirmou.
     const realLinks: string[] = [];
     if (response.candidates && response.candidates[0]?.groundingMetadata?.groundingChunks) {
       response.candidates[0].groundingMetadata.groundingChunks.forEach((chunk: any) => {
@@ -201,10 +196,9 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
         }
       });
     }
-    console.log("Links reais encontrados pelo Google:", realLinks);
+    console.log("Links verificados pelo Google:", realLinks);
 
     let text = response.text || "[]";
-    // Limpeza agressiva para garantir JSON puro
     text = text.replace(/```json/g, '').replace(/```/g, '').trim();
 
     let rawSamples = [];
@@ -212,56 +206,50 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
     try {
         rawSamples = JSON.parse(text);
     } catch (e) {
-        // Fallback: Tentar extrair o JSON de dentro do texto se houver lixo em volta
         const jsonMatch = text.match(/\[.*\]/s);
         if (jsonMatch) {
-            try {
-                rawSamples = JSON.parse(jsonMatch[0]);
-            } catch (e2) {
-                console.error("Falha fatal no parse do JSON da IA.");
-            }
+            try { rawSamples = JSON.parse(jsonMatch[0]); } catch (e2) {}
         }
     }
 
-    if (!Array.isArray(rawSamples)) {
-        console.warn("IA não retornou um array válido:", rawSamples);
-        return [];
-    }
+    if (!Array.isArray(rawSamples)) return [];
 
     const samples: MarketSample[] = rawSamples.map((s: any, index: number) => {
-      // 1. SANITIZAÇÃO RIGOROSA DO JSON URL
-      let jsonUrl = s.url || '';
-      // Se for link relativo ou de redirecionamento interno do Google (alucinação comum), descartamos.
-      if (jsonUrl.startsWith('/') || jsonUrl.includes('grounding-api-redirect')) {
-          jsonUrl = '';
-      }
-
-      // 2. Lógica de "Cura" do Link (Healing)
-      let finalUrl = jsonUrl;
-      const isBroken = !finalUrl || finalUrl.includes('...') || !finalUrl.startsWith('http');
+      let finalUrl = "";
       
+      // 1. Verifica se a URL bruta é lixo (Grounding API, Google Redirect, ou relativa)
+      const rawUrl = s.url || "";
+      const isGarbage = 
+        !rawUrl.startsWith('http') || 
+        rawUrl.includes('grounding-api') || 
+        rawUrl.includes('googleusercontent');
+
+      // 2. Tenta casar a amostra com um Link Verificado (Metadata)
       if (realLinks.length > 0) {
-        // Tentativa 1: Busca um link real que contenha o nome do portal (source)
-        const sourceName = (s.source || '').toLowerCase().replace(/\s/g, '');
-        // Busca um link que contenha o nome do portal E não seja uma busca genérica do Google
-        const matchingLink = realLinks.find(link => 
-            link.toLowerCase().includes(sourceName) && 
-            !link.includes('google.com/search')
-        );
-        
-        if (isBroken && matchingLink) {
-           finalUrl = matchingLink;
-        } 
-        // Tentativa 2: Se não achou por nome, e o índice existe no array de links reais, usa o correspondente
-        else if (isBroken && index < realLinks.length) {
-           finalUrl = realLinks[index];
-        }
+          // Normaliza o nome da fonte (Ex: "Viva Real" -> "vivareal")
+          const sourceKey = (s.source || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          
+          // Tenta encontrar um link real que contenha o nome da fonte
+          const match = realLinks.find(link => sourceKey && link.toLowerCase().includes(sourceKey));
+          
+          if (match) {
+              finalUrl = match;
+          } 
+          // Se não achou por nome, mas o índice bate com a lista de links (as vezes a ordem é preservada)
+          else if (index < realLinks.length) {
+              // Só usa se a URL original for lixo, senão preferimos não arriscar link errado
+              if (isGarbage) {
+                 // finalUrl = realLinks[index]; // Comentado: Arriscado cruzar por índice sem certeza
+              }
+          }
       }
 
-      // 3. FALLBACK DE SEGURANÇA (Se ainda não tem link válido)
-      // Gera um link de pesquisa do Google para o usuário encontrar o imóvel
-      if (!finalUrl || !finalUrl.startsWith('http')) {
-          const query = encodeURIComponent(`${s.urbanSubType || 'Imóvel'} ${s.title || ''} ${s.address || ''} ${data.city}`);
+      // 3. ESTRATÉGIA FINAL (FALLBACK DE SEGURANÇA):
+      // Se não temos um link VERIFICADO e SEGURO, geramos um link de BUSCA DO GOOGLE.
+      // Isso garante 100% que o link não será 404 e o usuário encontrará o imóvel.
+      if (!finalUrl) {
+          // Cria uma query de busca bem específica para o imóvel
+          const query = encodeURIComponent(`${s.urbanSubType || 'Imóvel'} ${s.address || ''} ${data.city} comprar`);
           finalUrl = `https://www.google.com/search?q=${query}`;
       }
 
@@ -272,14 +260,14 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
         address: s.address || (s.neighborhood ? `${s.neighborhood}, ${data.city}` : data.city),
         city: data.city,
         state: data.state,
-        neighborhood: s.neighborhood || data.neighborhood, // Tenta pegar o bairro que a IA achou
+        neighborhood: s.neighborhood || data.neighborhood,
         price: typeof s.price === 'string' ? parseFloat(s.price.replace(/[^0-9.]/g, '')) : Number(s.price),
         areaTotal: typeof s.areaTotal === 'string' ? parseFloat(s.areaTotal.replace(/[^0-9.]/g, '')) : Number(s.areaTotal),
         areaBuilt: s.areaTotal, 
         pricePerUnit: (typeof s.price === 'number' && typeof s.areaTotal === 'number') ? s.price / s.areaTotal : 0,
         date: new Date().toISOString(),
         source: s.source || 'Pesquisa Web',
-        url: finalUrl, // Usa a URL corrigida/sanitizada
+        url: finalUrl, // URL Segura (Verificada ou Busca Google)
         urbanSubType: data.urbanSubType,
         bedrooms: s.bedrooms || 0,
         bathrooms: s.bathrooms || 0,
@@ -288,17 +276,13 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
       };
     });
 
-    // Filtragem de segurança: Remover amostras com preço ou área zerados
     return samples.filter(s => s.price > 0 && s.areaTotal > 0);
 
   } catch (error: any) {
     console.error("Erro ao buscar amostras urbanas via IA:", error);
-    
-    // Tratamento específico para erro de permissão (403)
     if (error.message?.includes('403') || error.toString().includes('403') || error.status === 403) {
       throw new Error("API_KEY_RESTRICTION");
     }
-    
     throw error; 
   }
 };
