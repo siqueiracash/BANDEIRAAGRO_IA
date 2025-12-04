@@ -1,23 +1,36 @@
 import { GoogleGenAI } from "@google/genai";
 import { PropertyData, PropertyType, MarketSample } from "../types";
 
-// Acessa a chave diretamente do ambiente, conforme padrão da plataforma.
-const apiKey = process.env.API_KEY;
+// Helper para obter a chave de API de forma segura em tempo de execução
+const getApiKey = (): string | undefined => {
+  try {
+    if (typeof process !== 'undefined' && process.env) {
+      return process.env.API_KEY;
+    }
+  } catch (e) {
+    console.warn("Ambiente não suporta process.env");
+  }
+  return undefined;
+};
 
-const ai = new GoogleGenAI({ apiKey: apiKey });
+// Helper para instanciar o cliente IA
+const getAiClient = () => {
+  const apiKey = getApiKey();
+  return new GoogleGenAI({ apiKey: apiKey || '' });
+};
 
 /**
  * Identifies neighboring cities for a given location to expand search scope.
  */
 export const getNeighboringCities = async (city: string, state: string): Promise<string[]> => {
+  const apiKey = getApiKey();
   if (!apiKey) return [];
 
+  const ai = new GoogleGenAI({ apiKey });
   const modelId = "gemini-2.5-flash";
   const prompt = `Quais são as 5 a 8 cidades mais importantes e próximas geograficamente de ${city} no estado de ${state}? Liste cidades que provavelmente tenham mercado imobiliário rural ativo. Retorne apenas os nomes das cidades.`;
 
   try {
-    // Para tarefas simples de texto sem ferramentas, podemos usar responseSchema se quisermos JSON,
-    // mas aqui manteremos simples para evitar conflitos.
     const response = await ai.models.generateContent({
       model: modelId,
       contents: prompt,
@@ -30,7 +43,6 @@ export const getNeighboringCities = async (city: string, state: string): Promise
         const cities = JSON.parse(cleanText);
         return Array.isArray(cities) ? cities : [];
     } catch {
-        // Se falhar o parse, retorna array vazio (fallback silencioso)
         return [];
     }
   } catch (error) {
@@ -43,11 +55,14 @@ export const getNeighboringCities = async (city: string, state: string): Promise
  * Searches for Urban Comparable Samples using Google Search Grounding.
  */
 export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample[]> => {
+  const apiKey = getApiKey();
+
   if (!apiKey) {
     console.error("FATAL: API_KEY não encontrada em process.env");
     throw new Error("Chave de API não configurada. Se estiver rodando localmente, verifique seu arquivo .env.");
   }
 
+  const ai = new GoogleGenAI({ apiKey });
   const modelId = "gemini-2.5-flash";
 
   // Construct a specific search query incl. new fields
@@ -98,25 +113,19 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }]
-        // REMOVIDO: responseMimeType e responseSchema não podem ser usados junto com googleSearch
       }
     });
 
-    // Log para debug da resposta bruta (útil para desenvolvimento)
     console.log("Gemini Response Raw:", response.text);
 
-    // Limpeza de segurança caso o modelo insira blocos de código Markdown
     let text = response.text || "[]";
     text = text.replace(/```json/g, '').replace(/```/g, '').trim();
 
-    // Extração robusta do JSON
     let rawSamples = [];
     
-    // Tenta parse direto
     try {
         rawSamples = JSON.parse(text);
     } catch (e) {
-        // Fallback: tenta encontrar o array JSON dentro do texto usando Regex
         const jsonMatch = text.match(/\[.*\]/s);
         if (jsonMatch) {
             try {
@@ -132,7 +141,6 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
         return [];
     }
 
-    // Map to MarketSample interface
     const samples: MarketSample[] = rawSamples.map((s: any, index: number) => ({
       id: `ai-sample-${Date.now()}-${index}`,
       type: PropertyType.URBAN,
@@ -154,12 +162,10 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
       conservationState: 'Bom' 
     }));
 
-    // Filter out invalid samples (price or area missing)
     return samples.filter(s => s.price > 0 && s.areaTotal > 0);
 
   } catch (error) {
     console.error("Erro ao buscar amostras urbanas via IA:", error);
-    // Relançar o erro para o App.tsx tratar
     throw error; 
   }
 };
