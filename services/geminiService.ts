@@ -113,59 +113,57 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
   const ai = new GoogleGenAI({ apiKey });
   const modelId = "gemini-2.5-flash";
 
-  // --- ESTRATÉGIA DE BUSCA REFINADA ---
-  // 1. Extrair nome da rua limpo (sem número) para forçar proximidade
+  // --- ESTRATÉGIA DE BUSCA REFINADA (PORTAIS GIGANTES) ---
+  
+  // 1. Definição da Localização
   let streetName = "";
   if (data.address) {
-    // Pega tudo antes da primeira vírgula ou número
     streetName = data.address.split(',')[0].split('-')[0].trim();
   }
-
-  // 2. Construir Query Hierárquica: Rua -> Bairro -> Cidade
-  // Usar aspas no Bairro ajuda o Google a ser exato
-  const searchQuery = `comprar ${data.urbanSubType} "${streetName}" "${data.neighborhood}" ${data.city} ${data.state} ${data.bedrooms ? data.bedrooms + ' quartos' : ''} ${data.areaTotal}m2`;
+  
+  // 2. Construção da Query com Operador SITE:
+  // Força o Google a olhar dentro dos grandes bancos de dados
+  const portals = `(site:imovelweb.com.br OR site:zapimoveis.com.br OR site:vivareal.com.br OR site:olx.com.br OR site:chavesnamao.com.br)`;
+  
+  // Prioridade: Bairro + Cidade (A rua entra como palavra-chave opcional para não zerar a busca se não houver nada nela)
+  // Ex: (site:...) comprar Apartamento "Vila Mariana" São Paulo "Rua Vergueiro"
+  const searchQuery = `${portals} comprar ${data.urbanSubType} "${data.neighborhood}" ${data.city} ${data.state} "${streetName}"`;
 
   const prompt = `
-    Atue como um Engenheiro de Avaliações rigoroso.
-    Utilize a ferramenta de BUSCA DO GOOGLE (Google Search) para encontrar e estruturar 10 a 12 ofertas REAIS e ATUAIS.
+    Atue como um Engenheiro de Avaliações Sênior.
+    O usuário precisa encontrar amostras comparáveis para um imóvel urbano.
     
-    QUERY DE BUSCA: "${searchQuery}"
+    QUERY DE BUSCA EXECUTADA: "${searchQuery}"
     
-    DADOS DO IMÓVEL AVALIANDO (ALVO):
+    OBJETIVO:
+    Encontrar de 8 a 12 amostras de ofertas ATUAIS nos portais listados (Imovelweb, Zap, VivaReal, etc).
+    
+    DADOS DO IMÓVEL AVALIANDO:
     - Tipo: ${data.urbanSubType}
-    - Rua (Prioridade Máxima): ${streetName}
-    - Bairro (Obrigatório): ${data.neighborhood}
-    - Cidade: ${data.city} - ${data.state}
-    - Área Alvo: ${data.areaTotal} m²
+    - Bairro Alvo: ${data.neighborhood} (Prioridade TOTAL)
+    - Rua Alvo: ${streetName} (Desejável, mas se não achar, pegue no mesmo BAIRRO)
+    - Cidade: ${data.city}
     
-    CRITÉRIOS DE LOCALIZAÇÃO (IMPORTANTE):
-    1. A busca deve começar pela RUA ("${streetName}"). Tente encontrar imóveis na mesma rua ou ruas transversais.
-    2. Se não houver na rua, busque estritamente no BAIRRO "${data.neighborhood}".
-    3. REJEITE bairros com nomes parecidos mas que são locais diferentes (Ex: Se busco "Vila João", rejeite "Parque João"). A localização deve ser exata.
+    INSTRUÇÕES RÍGIDAS:
+    1. PRIORIDADE: Tente encontrar imóveis na Rua "${streetName}".
+    2. FALLBACK: Se houver poucas ou nenhuma opção na rua exata, LISTE IMÓVEIS NO BAIRRO "${data.neighborhood}". O Bairro é o fator de homogeneização principal.
+    3. NÃO INVENTE DADOS. Extraia o preço e área do snippet da busca.
+    4. Se o link for direto de um portal (ex: imovelweb.com.br/propriedade...), preserve-o.
     
-    REGRAS DE EXTRAÇÃO:
-    1. Pesquise em sites reais (Zap, VivaReal, OLX, Chaves na Mão, etc).
-    2. Extraia o Preço, Área Total, Quartos, Banheiros, Vagas, Endereço e Link (URL).
-    3. Se não encontrar o número exato de quartos/vagas, aproxime ou deixe 0.
-    4. O "source" deve ser o nome do portal (ex: VivaReal).
-    5. O "url" deve ser o link direto para o anúncio encontrado. **Tente pegar a URL real.**
-
-    SAÍDA OBRIGATÓRIA:
-    Retorne APENAS um array JSON válido contendo os dados. NÃO use formatação Markdown.
-    
-    Exemplo de formato:
+    SAÍDA JSON OBRIGATÓRIA:
+    Retorne APENAS um array JSON. Sem markdown.
     [
       {
-        "title": "Apartamento na Rua das Flores...",
+        "title": "Título do Anúncio",
         "price": 500000,
         "areaTotal": 80,
         "bedrooms": 2,
         "bathrooms": 2,
         "parking": 1,
-        "address": "Rua das Flores, Vila Mariana",
-        "neighborhood": "Vila Mariana",
-        "source": "Portal Z",
-        "url": "https://..."
+        "address": "Endereço encontrado (Rua ou Bairro)",
+        "neighborhood": "Bairro encontrado",
+        "source": "Imovelweb/Zap/etc",
+        "url": "Link do anúncio"
       }
     ]
   `;
@@ -176,7 +174,6 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
-        // Safety Settings ajustados para permitir endereços comerciais
         safetySettings: [
             { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
             { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
@@ -186,8 +183,7 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
       }
     });
 
-    // --- CORREÇÃO DE LINKS VIA GROUNDING METADATA (TOLERÂNCIA ZERO PARA ERROS) ---
-    // A IA frequentemente alucina URLs quebradas. Só aceitaremos URLs que o Google Search confirmou.
+    // --- CORREÇÃO DE LINKS VIA GROUNDING METADATA (TOLERÂNCIA ZERO PARA ERROS 404) ---
     const realLinks: string[] = [];
     if (response.candidates && response.candidates[0]?.groundingMetadata?.groundingChunks) {
       response.candidates[0].groundingMetadata.groundingChunks.forEach((chunk: any) => {
@@ -202,7 +198,6 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
     text = text.replace(/```json/g, '').replace(/```/g, '').trim();
 
     let rawSamples = [];
-    
     try {
         rawSamples = JSON.parse(text);
     } catch (e) {
@@ -217,39 +212,31 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
     const samples: MarketSample[] = rawSamples.map((s: any, index: number) => {
       let finalUrl = "";
       
-      // 1. Verifica se a URL bruta é lixo (Grounding API, Google Redirect, ou relativa)
+      // 1. Verifica se a URL bruta é lixo
       const rawUrl = s.url || "";
       const isGarbage = 
         !rawUrl.startsWith('http') || 
         rawUrl.includes('grounding-api') || 
         rawUrl.includes('googleusercontent');
 
-      // 2. Tenta casar a amostra com um Link Verificado (Metadata)
+      // 2. Tenta encontrar o link real nos metadados
       if (realLinks.length > 0) {
-          // Normaliza o nome da fonte (Ex: "Viva Real" -> "vivareal")
+          // Procura por match parcial de domínio (ex: 'imovelweb')
           const sourceKey = (s.source || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-          
-          // Tenta encontrar um link real que contenha o nome da fonte
           const match = realLinks.find(link => sourceKey && link.toLowerCase().includes(sourceKey));
           
           if (match) {
               finalUrl = match;
-          } 
-          // Se não achou por nome, mas o índice bate com a lista de links (as vezes a ordem é preservada)
-          else if (index < realLinks.length) {
-              // Só usa se a URL original for lixo, senão preferimos não arriscar link errado
-              if (isGarbage) {
-                 // finalUrl = realLinks[index]; // Comentado: Arriscado cruzar por índice sem certeza
-              }
+          } else if (!isGarbage && realLinks.includes(rawUrl)) {
+              finalUrl = rawUrl;
           }
       }
 
-      // 3. ESTRATÉGIA FINAL (FALLBACK DE SEGURANÇA):
-      // Se não temos um link VERIFICADO e SEGURO, geramos um link de BUSCA DO GOOGLE.
-      // Isso garante 100% que o link não será 404 e o usuário encontrará o imóvel.
-      if (!finalUrl) {
-          // Cria uma query de busca bem específica para o imóvel
-          const query = encodeURIComponent(`${s.urbanSubType || 'Imóvel'} ${s.address || ''} ${data.city} comprar`);
+      // 3. FALLBACK DE SEGURANÇA (IMPORTANTE):
+      // Se não garantimos o link direto, geramos um link de BUSCA Google específico para este imóvel.
+      // Isso permite que o usuário clique e veja o anúncio no topo do Google, mesmo que a URL direta tenha falhado.
+      if (!finalUrl || isGarbage) {
+          const query = encodeURIComponent(`site:imovelweb.com.br OR site:zapimoveis.com.br OR site:vivareal.com.br ${s.urbanSubType} ${s.neighborhood} ${data.city} ${s.price}`);
           finalUrl = `https://www.google.com/search?q=${query}`;
       }
 
@@ -266,8 +253,8 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
         areaBuilt: s.areaTotal, 
         pricePerUnit: (typeof s.price === 'number' && typeof s.areaTotal === 'number') ? s.price / s.areaTotal : 0,
         date: new Date().toISOString(),
-        source: s.source || 'Pesquisa Web',
-        url: finalUrl, // URL Segura (Verificada ou Busca Google)
+        source: s.source || 'Portal Imobiliário',
+        url: finalUrl,
         urbanSubType: data.urbanSubType,
         bedrooms: s.bedrooms || 0,
         bathrooms: s.bathrooms || 0,
