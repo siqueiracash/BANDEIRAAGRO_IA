@@ -382,7 +382,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                  </div>
 
                  <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">Capacidade de Uso</label>
+                    <label className="block text-xs font-bold text-gray-600 mb-1">Uso de Solo</label>
                     <select name="landCapability" value={form.landCapability} onChange={handleChange} className="w-full border p-2 rounded bg-white">
                       <option value="">Selecione...</option>
                       <option value="I - Culturas (Sem problemas)">I - Culturas (Sem problemas)</option>
@@ -396,7 +396,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                     </select>
                  </div>
                  <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">Acesso</label>
+                    <label className="block text-xs font-bold text-gray-600 mb-1">Acessibilidade</label>
                     <select name="access" value={form.access} onChange={handleChange} className="w-full border p-2 rounded bg-white">
                       <option value="">Selecione...</option>
                       <option value="Ótimo (asfalto, tráfego permanente)">Ótimo (asfalto)</option>
