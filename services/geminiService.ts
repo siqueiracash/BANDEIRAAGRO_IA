@@ -103,6 +103,83 @@ export const getNeighboringCities = async (city: string, state: string): Promise
 };
 
 /**
+ * FEATURE NOVA: Importador Inteligente de URL (Imovelweb, Zap, etc)
+ * Usa o Google Search para ler os metadados da URL indexada e extrair o JSON.
+ */
+export const extractSampleFromUrl = async (url: string, type: PropertyType): Promise<Partial<MarketSample> | null> => {
+  const apiKey = getApiKey();
+  validateKey(apiKey);
+  
+  // @ts-ignore
+  const ai = new GoogleGenAI({ apiKey });
+  const modelId = "gemini-2.5-flash"; // Modelo rápido e eficiente
+
+  const prompt = `
+    Atue como um extrator de dados imobiliários.
+    O usuário forneceu uma URL de um portal imobiliário (Imovelweb, Zap, VivaReal, etc).
+    
+    URL ALVO: "${url}"
+    
+    TAREFA:
+    Use a ferramenta de busca para encontrar as informações contidas nesta página específica (Preço, Área, Endereço, Quartos).
+    Normalmente o Google indexa o Título e a Descrição que contém "Venda de Apartamento... R$ 500.000... 80m²".
+    
+    EXTRAIA OS DADOS PARA JSON:
+    - Preço Total (price)
+    - Área Total (areaTotal)
+    - Cidade (city)
+    - Estado (state) - Sigla UF
+    - Bairro (neighborhood)
+    - Título do anúncio (title)
+    - Quartos (bedrooms)
+    - Banheiros (bathrooms)
+    - Vagas (parking)
+    
+    Se não encontrar algum dado exato, tente inferir pelo contexto ou deixe 0/null.
+    
+    SAÍDA JSON APENAS:
+    {
+      "title": "...",
+      "price": 0.00,
+      "areaTotal": 0.00,
+      "city": "...",
+      "state": "...",
+      "neighborhood": "...",
+      "bedrooms": 0,
+      "bathrooms": 0,
+      "parking": 0
+    }
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: modelId,
+      contents: prompt,
+      config: {
+        tools: [{ googleSearch: {} }] // Fundamental para ler "o que é essa URL"
+      }
+    });
+
+    let text = response.text || "{}";
+    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    const data = JSON.parse(text);
+
+    if (!data.price && !data.areaTotal) return null;
+
+    return {
+      type: type,
+      url: url,
+      source: new URL(url).hostname.replace('www.', ''),
+      ...data
+    };
+
+  } catch (error) {
+    console.error("Erro ao extrair dados da URL:", error);
+    return null;
+  }
+};
+
+/**
  * Searches for Urban Comparable Samples using Google Search Grounding.
  */
 export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample[]> => {
@@ -116,57 +193,43 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
   // --- ESTRATÉGIA DE BUSCA REFINADA (PORTAIS GIGANTES) ---
   
   // 1. Definição da Localização
-  let streetName = "";
-  if (data.address) {
-    streetName = data.address.split(',')[0].split('-')[0].trim();
-  }
+  // Removemos a rigidez da Rua para aumentar a chance de sucesso
+  // A busca foca em: TIPO + BAIRRO + CIDADE
   
-  // 2. Construção da Query com Operador SITE:
-  // Força o Google a olhar dentro dos grandes bancos de dados
-  const portals = `(site:imovelweb.com.br OR site:zapimoveis.com.br OR site:vivareal.com.br OR site:olx.com.br OR site:chavesnamao.com.br)`;
+  const portals = `(site:imovelweb.com.br OR site:zapimoveis.com.br OR site:vivareal.com.br OR site:olx.com.br OR site:chavesnamao.com.br OR site:quintoandar.com.br)`;
   
-  // Prioridade: Bairro + Cidade (A rua entra como palavra-chave opcional para não zerar a busca se não houver nada nela)
-  // Ex: (site:...) comprar Apartamento "Vila Mariana" São Paulo "Rua Vergueiro"
-  const searchQuery = `${portals} comprar ${data.urbanSubType} "${data.neighborhood}" ${data.city} ${data.state} "${streetName}"`;
+  // Query otimizada para capturar títulos de anúncios
+  // Ex: intitle:"Venda" intitle:"Apartamento" "Vila Mariana" "São Paulo"
+  const searchQuery = `${portals} intitle:"Venda" intitle:"${data.urbanSubType}" "${data.neighborhood}" ${data.city} ${data.state}`;
 
   const prompt = `
     Atue como um Engenheiro de Avaliações Sênior especialista em NBR 14653.
-    O usuário precisa encontrar amostras comparáveis para um imóvel urbano com ALTA PRECISÃO (Mínimo Grau II).
     
-    QUERY DE BUSCA EXECUTADA: "${searchQuery}"
+    OBJETIVO CRÍTICO:
+    Encontrar amostras de mercado REAIS para um ${data.urbanSubType} no bairro ${data.neighborhood}, ${data.city}-${data.state}.
     
-    OBJETIVO:
-    Encontrar de 20 a 30 amostras de ofertas ATUAIS nos portais listados.
-    QUANTO MAIS AMOSTRAS, MELHOR A PRECISÃO DO LAUDO.
+    QUERY DE BUSCA: "${searchQuery}"
     
-    ESTRATÉGIA DE BUSCA E EXPANSÃO (IMPORTANTE):
-    1. ALVO PRINCIPAL: Busque imóveis na Rua "${streetName}" e no Bairro "${data.neighborhood}".
-    2. EXPANSÃO AUTOMÁTICA OBRIGATÓRIA: Se não encontrar pelo menos 15 amostras neste bairro exato, VOCÊ DEVE BUSCAR EM BAIRROS VIZINHOS OU SEMELHANTES na cidade de ${data.city}.
-    3. CRITÉRIO DE SEMELHANÇA: Ao expandir, mantenha o mesmo padrão construtivo e perfil socioeconômico para garantir homogeneidade (Preço por m² próximo).
+    INSTRUÇÕES DE EXTRAÇÃO (IMPORTANTE):
+    1. Analise os resultados da busca (snippets).
+    2. Identifique anúncios que contenham PREÇO (R$) e ÁREA (m²).
+    3. Ignore aluguel. Busque apenas VENDA.
+    4. Se o bairro exato "${data.neighborhood}" tiver poucas opções, aceite bairros imediatamente vizinhos, mas indique no campo 'neighborhood'.
     
-    DADOS DO IMÓVEL AVALIANDO:
-    - Tipo: ${data.urbanSubType}
-    - Bairro Alvo: ${data.neighborhood}
-    - Rua Alvo: ${streetName}
-    - Cidade: ${data.city}
+    REQUISITOS DE DADOS:
+    - Preço deve ser numérico (ex: 500000).
+    - Área deve ser numérica (ex: 100).
     
-    INSTRUÇÕES RÍGIDAS:
-    - Ignore leilões ou preços simbólicos.
-    - Extraia o preço e área do snippet da busca.
-    - Se o anúncio for de um bairro vizinho, indique isso no campo 'neighborhood'.
-    
-    SAÍDA JSON OBRIGATÓRIA:
-    Retorne APENAS um array JSON. Sem markdown.
+    SAÍDA JSON OBRIGATÓRIA (Array de objetos):
     [
       {
-        "title": "Título do Anúncio",
+        "title": "Título Completo do Snippet",
         "price": 500000,
         "areaTotal": 80,
         "bedrooms": 2,
         "bathrooms": 2,
         "parking": 1,
-        "address": "Endereço encontrado (Rua ou Bairro)",
-        "neighborhood": "Bairro encontrado",
+        "neighborhood": "Bairro Encontrado",
         "source": "Imovelweb/Zap/etc",
         "url": "Link do anúncio"
       }
@@ -197,7 +260,6 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
         }
       });
     }
-    console.log("Links verificados pelo Google:", realLinks);
 
     let text = response.text || "[]";
     text = text.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -217,16 +279,13 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
     const samples: MarketSample[] = rawSamples.map((s: any, index: number) => {
       let finalUrl = "";
       
-      // 1. Verifica se a URL bruta é lixo
       const rawUrl = s.url || "";
       const isGarbage = 
         !rawUrl.startsWith('http') || 
         rawUrl.includes('grounding-api') || 
         rawUrl.includes('googleusercontent');
 
-      // 2. Tenta encontrar o link real nos metadados
       if (realLinks.length > 0) {
-          // Procura por match parcial de domínio (ex: 'imovelweb')
           const sourceKey = (s.source || '').toLowerCase().replace(/[^a-z0-9]/g, '');
           const match = realLinks.find(link => sourceKey && link.toLowerCase().includes(sourceKey));
           
@@ -237,9 +296,9 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
           }
       }
 
-      // 3. FALLBACK DE SEGURANÇA:
       if (!finalUrl || isGarbage) {
-          const query = encodeURIComponent(`site:imovelweb.com.br OR site:zapimoveis.com.br OR site:vivareal.com.br ${s.urbanSubType} ${s.neighborhood} ${data.city} ${s.price}`);
+          // Reconstrói um link de busca se o link direto falhar
+          const query = encodeURIComponent(`${s.source} ${s.urbanSubType} ${s.neighborhood} ${data.city} venda`);
           finalUrl = `https://www.google.com/search?q=${query}`;
       }
 

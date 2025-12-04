@@ -1,6 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { MarketSample, PropertyType } from '../types';
 import { getSamples, saveSample, updateSample, deleteSample } from '../services/storageService';
+import { extractSampleFromUrl } from '../services/geminiService';
 import { BRAZIL_STATES } from '../constants';
 
 interface AdminDashboardProps {
@@ -23,6 +25,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     minArea: '',
     maxArea: '',
   });
+
+  // --- ESTADOS DE IMPORTAÇÃO ---
+  const [importUrl, setImportUrl] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
 
   // --- ESTADOS DO FORMULÁRIO ---
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -84,6 +90,40 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     });
   };
 
+  // --- LÓGICA DE IMPORTAÇÃO ---
+  const handleImport = async () => {
+    if (!importUrl) return;
+    setIsImporting(true);
+    try {
+      // Determina o tipo baseado no form atual, ou padrão Urbano
+      const type = form.type || PropertyType.URBAN;
+      const extractedData = await extractSampleFromUrl(importUrl, type);
+      
+      if (extractedData) {
+        // Mescla os dados extraídos no formulário
+        setForm(prev => ({
+          ...prev,
+          ...extractedData,
+          // Mantém o tipo selecionado se a IA falhar nisso
+          type: type 
+        }));
+        
+        // Atualiza display de preço
+        if (extractedData.price) {
+          setPriceDisplay(extractedData.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 }));
+        }
+        alert("Dados extraídos com sucesso! Verifique o formulário abaixo e salve.");
+      } else {
+        alert("Não foi possível extrair dados automaticamente desta URL. Tente preencher manualmente.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Erro na importação: " + (e as any).message);
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   // --- LÓGICA DO FORMULÁRIO ---
 
   const formatCurrency = (value: number | undefined) => {
@@ -117,6 +157,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       ruralActivity: 'Lavoura' 
     });
     setPriceDisplay('');
+    setImportUrl('');
     setEditingId(null);
   };
 
@@ -332,149 +373,229 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             </div>
           </div>
         ) : !loading && activeTab === 'ADD' ? (
-          <form onSubmit={handleSave} className="space-y-6">
-            <div className="bg-gray-50 p-4 rounded border">
-               <label className="block text-sm font-bold mb-2">Categoria</label>
-               <select name="type" className="w-full border p-2 rounded" value={form.type} onChange={e => setForm({...form, type: e.target.value as any})}>
-                 <option value={PropertyType.URBAN}>Urbano</option>
-                 <option value={PropertyType.RURAL}>Rural</option>
-               </select>
+          <div>
+            {/* --- SEÇÃO DE IMPORTAÇÃO INTELIGENTE --- */}
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-8 animate-fade-in">
+               <div className="flex items-start gap-4">
+                  <div className="bg-blue-100 p-2 rounded-lg text-blue-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                     <h3 className="text-lg font-bold text-blue-900 mb-1">Importação Inteligente (Integração de Portal)</h3>
+                     <p className="text-sm text-blue-700 mb-4">
+                        Cole abaixo o link de um anúncio do <strong>Imovelweb, Zap Imóveis, VivaReal ou OLX</strong>. 
+                        A IA irá extrair os dados automaticamente e preencher o formulário para você.
+                     </p>
+                     
+                     <div className="flex gap-2">
+                        <input 
+                          type="text" 
+                          placeholder="https://www.imovelweb.com.br/propriedade/..." 
+                          className="flex-1 border border-blue-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                          value={importUrl}
+                          onChange={(e) => setImportUrl(e.target.value)}
+                        />
+                        <button 
+                          onClick={handleImport}
+                          disabled={isImporting || !importUrl}
+                          className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-bold px-6 py-2 rounded-lg transition-colors flex items-center gap-2"
+                        >
+                          {isImporting ? (
+                            <>
+                              <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                              Processando...
+                            </>
+                          ) : (
+                            <>Processar Link</>
+                          )}
+                        </button>
+                     </div>
+                  </div>
+               </div>
             </div>
 
-            {/* CAMPOS COMUNS (CIDADE, PREÇO, ÁREA) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
-               <div>
-                  <label className="block text-sm font-bold mb-1">Cidade *</label>
-                  <input name="city" value={form.city} onChange={handleChange} className="w-full border p-2 rounded" required />
-               </div>
-               <div>
-                  <label className="block text-sm font-bold mb-1">Estado *</label>
-                  <select name="state" value={form.state} onChange={handleChange} className="w-full border p-2 rounded" required>
-                     <option value="">UF</option>{BRAZIL_STATES.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-               </div>
-               <div>
-                  <label className="block text-sm font-bold mb-1">Área Total {isRural ? '(ha)' : '(m²)'} *</label>
-                  <input type="number" name="areaTotal" value={form.areaTotal || ''} onChange={handleChange} className="w-full border p-2 rounded" required />
-               </div>
-               <div>
-                  <label className="block text-sm font-bold mb-1">Valor Total (R$) *</label>
-                  <input type="text" value={priceDisplay} onChange={handlePriceChange} className="w-full border p-2 rounded font-bold" required />
-               </div>
-            </div>
+            <form onSubmit={handleSave} className="space-y-6">
+              <div className="bg-gray-50 p-4 rounded border">
+                 <label className="block text-sm font-bold mb-2">Categoria</label>
+                 <select name="type" className="w-full border p-2 rounded" value={form.type} onChange={e => setForm({...form, type: e.target.value as any})}>
+                   <option value={PropertyType.URBAN}>Urbano</option>
+                   <option value={PropertyType.RURAL}>Rural</option>
+                 </select>
+              </div>
 
-            {/* FORMULÁRIO RURAL ATUALIZADO */}
-            {isRural && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded bg-green-50 mt-4 animate-fade-in">
-                 <h3 className="md:col-span-2 font-bold text-green-800 text-lg border-b border-green-200 pb-2">Detalhes Rurais de Alta Precisão</h3>
-                 
-                 {/* 1. Atividade Principal (Largura total) */}
-                 <div className="md:col-span-2">
-                    <label className="block text-xs font-bold text-gray-600 mb-1">Atividade Principal</label>
-                    <select name="ruralActivity" value={form.ruralActivity} onChange={handleChange} className="w-full border p-2 rounded bg-white">
-                      <option value="Lavoura">Lavoura</option>
-                      <option value="Pecuária">Pecuária</option>
-                      <option value="Pasto">Pasto</option>
-                      <option value="Floresta">Floresta</option>
-                      <option value="Cerrado Nativo">Cerrado Nativo</option>
-                      <option value="Mata Nativa">Mata Nativa</option>
-                    </select>
-                 </div>
-
-                 {/* 2. Benfeitorias | Acessibilidade */}
+              {/* CAMPOS COMUNS (CIDADE, PREÇO, ÁREA) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
                  <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">Benfeitorias</label>
-                    <select name="improvements" value={form.improvements} onChange={handleChange} className="w-full border p-2 rounded bg-white">
-                      <option value="">Selecione...</option>
-                      <option value="Benfeitorias de padrão Superior ao local">Superior ao local</option>
-                      <option value="Benfeitorias de padrão Comum ao local">Comum ao local</option>
-                      <option value="Benfeitorias de padrão Inferior ao local ou Inexistentes">Inferior ou Inexistentes</option>
+                    <label className="block text-sm font-bold mb-1">Cidade *</label>
+                    <input name="city" value={form.city} onChange={handleChange} className="w-full border p-2 rounded" required />
+                 </div>
+                 <div>
+                    <label className="block text-sm font-bold mb-1">Estado *</label>
+                    <select name="state" value={form.state} onChange={handleChange} className="w-full border p-2 rounded" required>
+                       <option value="">UF</option>{BRAZIL_STATES.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                  </div>
                  <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">Acessibilidade</label>
-                    <select name="access" value={form.access} onChange={handleChange} className="w-full border p-2 rounded bg-white">
-                      <option value="">Selecione...</option>
-                      <option value="Ótimo (asfalto, tráfego permanente)">Ótimo (asfalto)</option>
-                      <option value="Muito Bom (estrada classe, não asfalto)">Muito Bom (estrada classe)</option>
-                      <option value="Bom (não pavimentada, tráfego permanente)">Bom (não pavimentada)</option>
-                      <option value="Regular (não pavimentada, sujeita a interrupção)">Regular (interrupção possível)</option>
-                      <option value="Mau (interrupção na chuva)">Mau (interrupção na chuva)</option>
-                      <option value="Péssimo (interrupção por córrego sem ponte)">Péssimo (sem ponte)</option>
-                      <option value="Encravada">Encravada</option>
-                    </select>
-                 </div>
-
-                 {/* 3. Superficie | Ocupação */}
-                 <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">Superfície</label>
-                    <select name="surface" value={form.surface} onChange={handleChange} className="w-full border p-2 rounded bg-white">
-                      <option value="">Selecione...</option>
-                      <option value="Seca">Seca</option>
-                      <option value="Alagadiça">Alagadiça</option>
-                      <option value="Brejosa ou Pantanosa">Brejosa ou Pantanosa</option>
-                      <option value="Permanentemente Alagada">Permanentemente Alagada</option>
-                    </select>
+                    <label className="block text-sm font-bold mb-1">Área Total {isRural ? '(ha)' : '(m²)'} *</label>
+                    <input type="number" name="areaTotal" value={form.areaTotal || ''} onChange={handleChange} className="w-full border p-2 rounded" required />
                  </div>
                  <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">Ocupação</label>
-                    <select name="occupation" value={form.occupation} onChange={handleChange} className="w-full border p-2 rounded bg-white">
-                      <option value="">Selecione...</option>
-                      <option value="Alta: 80 a 100% aberto">Alta: 80 a 100% aberto</option>
-                      <option value="Média-Alta: 70 a 80% aberto">Média-Alta: 70 a 80%</option>
-                      <option value="Média: 50 a 70% aberto">Média: 50 a 70%</option>
-                      <option value="Média-Baixa: 40 a 50% aberto">Média-Baixa: 40 a 50%</option>
-                      <option value="Baixa: 20 a 40% aberto">Baixa: 20 a 40%</option>
-                      <option value="Nula: abaixo de 20%">Nula: abaixo de 20%</option>
-                    </select>
-                 </div>
-
-                 {/* 4. Uso de Solo | Topografia */}
-                 <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">Uso de Solo</label>
-                    <select name="landCapability" value={form.landCapability} onChange={handleChange} className="w-full border p-2 rounded bg-white">
-                      <option value="">Selecione...</option>
-                      <option value="I - Culturas (Sem problemas)">I - Culturas (Sem problemas)</option>
-                      <option value="II - Culturas (Pequenos problemas)">II - Culturas (Pequenos problemas)</option>
-                      <option value="III - Culturas (Sérios problemas)">III - Culturas (Sérios problemas)</option>
-                      <option value="IV - Culturas Ocasionais / Pastagens">IV - Culturas Ocasionais / Pastagens</option>
-                      <option value="V - Só Pastagens">V - Só Pastagens</option>
-                      <option value="VI - Só Pastagens (Pequenos problemas)">VI - Só Pastagens (Pequenos problemas)</option>
-                      <option value="VII - Florestas">VII - Florestas</option>
-                      <option value="VIII - Abrigo Silvestre">VIII - Abrigo Silvestre</option>
-                    </select>
-                 </div>
-                 <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">Topografia</label>
-                    <select name="topography" value={form.topography} onChange={handleChange} className="w-full border p-2 rounded bg-white">
-                      <option value="">Selecione...</option>
-                      <option value="Plano">Plano</option>
-                      <option value="Leve-Ondulado">Leve-Ondulado</option>
-                      <option value="Ondulado">Ondulado</option>
-                      <option value="Montanhoso">Montanhoso</option>
-                    </select>
-                 </div>
-
-                 {/* 5. Melhoramentos (Largura total) */}
-                 <div className="md:col-span-2">
-                    <label className="block text-xs font-bold text-gray-600 mb-1">Melhoramentos</label>
-                    <select name="publicImprovements" value={form.publicImprovements} onChange={handleChange} className="w-full border p-2 rounded bg-white">
-                      <option value="">Selecione...</option>
-                      <option value="Luz domiciliar + Força + Rede telefônica">Luz + Força + Telefone</option>
-                      <option value="Luz domiciliar + Força">Luz + Força</option>
-                      <option value="Luz domiciliar + Rede">Luz + Rede</option>
-                      <option value="Luz domiciliar">Somente Luz</option>
-                      <option value="Força + Rede telefônica">Força + Telefone</option>
-                      <option value="Nenhum">Nenhum</option>
-                    </select>
+                    <label className="block text-sm font-bold mb-1">Valor Total (R$) *</label>
+                    <input type="text" value={priceDisplay} onChange={handlePriceChange} className="w-full border p-2 rounded font-bold" required />
                  </div>
               </div>
-            )}
 
-            <button type="submit" className="w-full bg-agro-700 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-agro-800">
-              {editingId ? 'Atualizar Amostra' : 'Salvar Amostra'}
-            </button>
-          </form>
+              {/* FORMULÁRIO URBANO ESPECÍFICO */}
+              {!isRural && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
+                   <div>
+                      <label className="block text-sm font-bold mb-1">Bairro</label>
+                      <input name="neighborhood" value={form.neighborhood || ''} onChange={handleChange} className="w-full border p-2 rounded" />
+                   </div>
+                   <div>
+                      <label className="block text-sm font-bold mb-1">Endereço</label>
+                      <input name="address" value={form.address || ''} onChange={handleChange} className="w-full border p-2 rounded" />
+                   </div>
+                   <div className="grid grid-cols-3 gap-2 md:col-span-2">
+                      <div>
+                        <label className="block text-xs font-bold mb-1">Quartos</label>
+                        <input type="number" name="bedrooms" value={form.bedrooms || ''} onChange={handleChange} className="w-full border p-2 rounded" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold mb-1">Banheiros</label>
+                        <input type="number" name="bathrooms" value={form.bathrooms || ''} onChange={handleChange} className="w-full border p-2 rounded" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold mb-1">Vagas</label>
+                        <input type="number" name="parking" value={form.parking || ''} onChange={handleChange} className="w-full border p-2 rounded" />
+                      </div>
+                   </div>
+                   <div className="md:col-span-2">
+                      <label className="block text-sm font-bold mb-1">Título do Anúncio</label>
+                      <input name="title" value={form.title || ''} onChange={handleChange} className="w-full border p-2 rounded" />
+                   </div>
+                   <div className="md:col-span-2">
+                      <label className="block text-sm font-bold mb-1">URL Original</label>
+                      <input name="url" value={form.url || ''} onChange={handleChange} className="w-full border p-2 rounded bg-gray-50 text-gray-500 text-xs" />
+                   </div>
+                </div>
+              )}
+
+              {/* FORMULÁRIO RURAL ATUALIZADO */}
+              {isRural && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded bg-green-50 mt-4 animate-fade-in">
+                   <h3 className="md:col-span-2 font-bold text-green-800 text-lg border-b border-green-200 pb-2">Detalhes Rurais de Alta Precisão</h3>
+                   
+                   {/* 1. Atividade Principal (Largura total) */}
+                   <div className="md:col-span-2">
+                      <label className="block text-xs font-bold text-gray-600 mb-1">Atividade Principal</label>
+                      <select name="ruralActivity" value={form.ruralActivity} onChange={handleChange} className="w-full border p-2 rounded bg-white">
+                        <option value="Lavoura">Lavoura</option>
+                        <option value="Pecuária">Pecuária</option>
+                        <option value="Pasto">Pasto</option>
+                        <option value="Floresta">Floresta</option>
+                        <option value="Cerrado Nativo">Cerrado Nativo</option>
+                        <option value="Mata Nativa">Mata Nativa</option>
+                      </select>
+                   </div>
+
+                   {/* 2. Benfeitorias | Acessibilidade */}
+                   <div>
+                      <label className="block text-xs font-bold text-gray-600 mb-1">Benfeitorias</label>
+                      <select name="improvements" value={form.improvements} onChange={handleChange} className="w-full border p-2 rounded bg-white">
+                        <option value="">Selecione...</option>
+                        <option value="Benfeitorias de padrão Superior ao local">Superior ao local</option>
+                        <option value="Benfeitorias de padrão Comum ao local">Comum ao local</option>
+                        <option value="Benfeitorias de padrão Inferior ao local ou Inexistentes">Inferior ou Inexistentes</option>
+                      </select>
+                   </div>
+                   <div>
+                      <label className="block text-xs font-bold text-gray-600 mb-1">Acessibilidade</label>
+                      <select name="access" value={form.access} onChange={handleChange} className="w-full border p-2 rounded bg-white">
+                        <option value="">Selecione...</option>
+                        <option value="Ótimo (asfalto, tráfego permanente)">Ótimo (asfalto)</option>
+                        <option value="Muito Bom (estrada classe, não asfalto)">Muito Bom (estrada classe)</option>
+                        <option value="Bom (não pavimentada, tráfego permanente)">Bom (não pavimentada)</option>
+                        <option value="Regular (não pavimentada, sujeita a interrupção)">Regular (interrupção possível)</option>
+                        <option value="Mau (interrupção na chuva)">Mau (interrupção na chuva)</option>
+                        <option value="Péssimo (interrupção por córrego sem ponte)">Péssimo (sem ponte)</option>
+                        <option value="Encravada">Encravada</option>
+                      </select>
+                   </div>
+
+                   {/* 3. Superficie | Ocupação */}
+                   <div>
+                      <label className="block text-xs font-bold text-gray-600 mb-1">Superfície</label>
+                      <select name="surface" value={form.surface} onChange={handleChange} className="w-full border p-2 rounded bg-white">
+                        <option value="">Selecione...</option>
+                        <option value="Seca">Seca</option>
+                        <option value="Alagadiça">Alagadiça</option>
+                        <option value="Brejosa ou Pantanosa">Brejosa ou Pantanosa</option>
+                        <option value="Permanentemente Alagada">Permanentemente Alagada</option>
+                      </select>
+                   </div>
+                   <div>
+                      <label className="block text-xs font-bold text-gray-600 mb-1">Ocupação</label>
+                      <select name="occupation" value={form.occupation} onChange={handleChange} className="w-full border p-2 rounded bg-white">
+                        <option value="">Selecione...</option>
+                        <option value="Alta: 80 a 100% aberto">Alta: 80 a 100% aberto</option>
+                        <option value="Média-Alta: 70 a 80% aberto">Média-Alta: 70 a 80%</option>
+                        <option value="Média: 50 a 70% aberto">Média: 50 a 70%</option>
+                        <option value="Média-Baixa: 40 a 50% aberto">Média-Baixa: 40 a 50%</option>
+                        <option value="Baixa: 20 a 40% aberto">Baixa: 20 a 40%</option>
+                        <option value="Nula: abaixo de 20%">Nula: abaixo de 20%</option>
+                      </select>
+                   </div>
+
+                   {/* 4. Uso de Solo | Topografia */}
+                   <div>
+                      <label className="block text-xs font-bold text-gray-600 mb-1">Uso de Solo</label>
+                      <select name="landCapability" value={form.landCapability} onChange={handleChange} className="w-full border p-2 rounded bg-white">
+                        <option value="">Selecione...</option>
+                        <option value="I - Culturas (Sem problemas)">I - Culturas (Sem problemas)</option>
+                        <option value="II - Culturas (Pequenos problemas)">II - Culturas (Pequenos problemas)</option>
+                        <option value="III - Culturas (Sérios problemas)">III - Culturas (Sérios problemas)</option>
+                        <option value="IV - Culturas Ocasionais / Pastagens">IV - Culturas Ocasionais / Pastagens</option>
+                        <option value="V - Só Pastagens">V - Só Pastagens</option>
+                        <option value="VI - Só Pastagens (Pequenos problemas)">VI - Só Pastagens (Pequenos problemas)</option>
+                        <option value="VII - Florestas">VII - Florestas</option>
+                        <option value="VIII - Abrigo Silvestre">VIII - Abrigo Silvestre</option>
+                      </select>
+                   </div>
+                   <div>
+                      <label className="block text-xs font-bold text-gray-600 mb-1">Topografia</label>
+                      <select name="topography" value={form.topography} onChange={handleChange} className="w-full border p-2 rounded bg-white">
+                        <option value="">Selecione...</option>
+                        <option value="Plano">Plano</option>
+                        <option value="Leve-Ondulado">Leve-Ondulado</option>
+                        <option value="Ondulado">Ondulado</option>
+                        <option value="Montanhoso">Montanhoso</option>
+                      </select>
+                   </div>
+
+                   {/* 5. Melhoramentos (Largura total) */}
+                   <div className="md:col-span-2">
+                      <label className="block text-xs font-bold text-gray-600 mb-1">Melhoramentos</label>
+                      <select name="publicImprovements" value={form.publicImprovements} onChange={handleChange} className="w-full border p-2 rounded bg-white">
+                        <option value="">Selecione...</option>
+                        <option value="Luz domiciliar + Força + Rede telefônica">Luz + Força + Telefone</option>
+                        <option value="Luz domiciliar + Força">Luz + Força</option>
+                        <option value="Luz domiciliar + Rede">Luz + Rede</option>
+                        <option value="Luz domiciliar">Somente Luz</option>
+                        <option value="Força + Rede telefônica">Força + Telefone</option>
+                        <option value="Nenhum">Nenhum</option>
+                      </select>
+                   </div>
+                </div>
+              )}
+
+              <button type="submit" className="w-full bg-agro-700 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-agro-800">
+                {editingId ? 'Atualizar Amostra' : 'Salvar Amostra'}
+              </button>
+            </form>
+          </div>
         ) : null}
       </div>
     </div>
