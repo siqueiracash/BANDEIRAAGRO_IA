@@ -515,14 +515,14 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
     <!-- METODOLOGIA E CRITÉRIO -->
     <div class="report-section p-8 text-justify">
        <div class="mb-8">
-         <h3 class="text-lg font-serif font-bold text-gray-800 mb-4">7 METODOLOGIA GERAL DE AVALIAÇÃO</h3>
+         <h3 class="text-lg font-serif font-bold text-gray-800 mb-4">METODOLOGIA GERAL DE AVALIAÇÃO</h3>
          <p class="mb-4 text-gray-700">
             De acordo com a Norma da ABNT NBR 14653 o terreno será avaliado com base no "Método Comparativo de Dados de Mercado", através de dados de mercado de imóveis semelhantes ao avaliando, à venda ou efetivamente transacionados no livre mercado imobiliário da região.
          </p>
        </div>
 
        <div class="mb-8">
-         <h3 class="text-lg font-serif font-bold text-gray-800 mb-4">8 CRITÉRIO</h3>
+         <h3 class="text-lg font-serif font-bold text-gray-800 mb-4">CRITÉRIOS ADOTADOS</h3>
          <p class="mb-4 text-gray-700">
             Para a presente avaliação estabelecemos os critérios de Valores de Mercado e Liquidação Forçada, definidos como:
          </p>
@@ -546,10 +546,10 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
 
     <div class="page-break"></div>
 
-    <!-- 9.4 VALOR DO IMÓVEL PARA LIQUIDAÇÃO FORÇADA -->
+    <!-- VALOR DO IMÓVEL PARA LIQUIDAÇÃO FORÇADA -->
     <div class="report-section p-8 text-justify">
        <div class="mb-8">
-          <h3 class="text-lg font-serif font-bold text-gray-800 mb-4">9.4 VALOR DO IMÓVEL PARA LIQUIDAÇÃO FORÇADA</h3>
+          <h3 class="text-lg font-serif font-bold text-gray-800 mb-4">VALOR DO IMÓVEL PARA LIQUIDAÇÃO FORÇADA</h3>
           <p class="text-gray-700 mb-2">
              Para a determinação do “Valor de Liquidação do Imóvel” foram adotados os preceitos constantes do trabalho técnico mencionado.
           </p>
@@ -575,12 +575,12 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
 
     <div class="page-break"></div>
 
-    <!-- ANEXO 01 - FICHAS DE PESQUISA (PAGINADO) -->
+    <!-- ANEXO I - FICHAS DE PESQUISA (PAGINADO) -->
     ${sampleChunks.map((chunkData) => `
       ${chunkData.pageIndex > 0 ? '<div class="page-break"></div>' : ''}
       <div class="report-section p-8">
          <h2 class="text-2xl font-serif font-bold text-gray-800 text-center uppercase mb-10">
-            ${chunkData.pageIndex === 0 ? '11 - ANEXO Nº 01<br/><span class="text-lg font-normal">FICHAS DE PESQUISA</span>' : '<span class="text-lg font-normal">FICHAS DE PESQUISA (Continuação)</span>'}
+            ${chunkData.pageIndex === 0 ? 'ANEXO I<br/><span class="text-lg font-normal">FICHAS DE PESQUISA</span>' : '<span class="text-lg font-normal">FICHAS DE PESQUISA (Continuação)</span>'}
          </h2>
          
          <div class="space-y-8">
@@ -629,9 +629,9 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
 
     <div class="page-break"></div>
 
-    <!-- ANEXO 03 - MEMÓRIA DE CÁLCULO -->
+    <!-- ANEXO II - MEMÓRIA DE CÁLCULO -->
     <div class="report-section p-8">
-       <h2 class="text-2xl font-serif font-bold text-gray-800 text-center uppercase mb-10">13 - ANEXO Nº 03<br/><span class="text-lg font-normal">MEMÓRIA DE CÁLCULO</span></h2>
+       <h2 class="text-2xl font-serif font-bold text-gray-800 text-center uppercase mb-10">ANEXO II<br/><span class="text-lg font-normal">MEMÓRIA DE CÁLCULO</span></h2>
 
        <h3 class="font-bold text-gray-800 mb-4 uppercase text-sm border-b border-gray-400 pb-1">Elementos Coletados e Utilizados</h3>
        <div class="overflow-x-auto mb-8">
