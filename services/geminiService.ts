@@ -1,15 +1,30 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { PropertyData, PropertyType, MarketSample } from "../types";
 
-// Helper para obter a chave de API de forma segura em tempo de execução
+// Helper para obter a chave de API de forma robusta (Vite, Next, ou Node)
 const getApiKey = (): string | undefined => {
+  // 1. Tenta padrão VITE (mais comum para React Apps modernos/Vercel)
   try {
-    if (typeof process !== 'undefined' && process.env) {
-      return process.env.API_KEY;
+    // @ts-ignore
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
+      // @ts-ignore
+      return import.meta.env.VITE_API_KEY;
     }
   } catch (e) {
-    console.warn("Ambiente não suporta process.env");
+    // Ignora erro se import.meta não existir
   }
+
+  // 2. Tenta process.env (Node.js ou Webpack com polyfill)
+  try {
+    if (typeof process !== 'undefined' && process.env) {
+      // Tenta variações comuns
+      return process.env.API_KEY || process.env.VITE_API_KEY || process.env.REACT_APP_API_KEY;
+    }
+  } catch (e) {
+    // Ignora erro se process não existir
+  }
+
   return undefined;
 };
 
@@ -58,8 +73,8 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
   const apiKey = getApiKey();
 
   if (!apiKey) {
-    console.error("FATAL: API_KEY não encontrada em process.env");
-    throw new Error("Chave de API não configurada. Se estiver rodando localmente, verifique seu arquivo .env.");
+    console.error("FATAL: Nenhuma API KEY encontrada (VITE_API_KEY ou API_KEY).");
+    throw new Error("Chave de API não configurada. Configure a variável de ambiente VITE_API_KEY no seu servidor (Vercel/Netlify) ou arquivo .env local.");
   }
 
   const ai = new GoogleGenAI({ apiKey });
@@ -126,6 +141,7 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
     try {
         rawSamples = JSON.parse(text);
     } catch (e) {
+        // Fallback: Tentar extrair o JSON de dentro do texto se houver lixo em volta
         const jsonMatch = text.match(/\[.*\]/s);
         if (jsonMatch) {
             try {
@@ -154,7 +170,8 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
       areaBuilt: s.areaTotal, 
       pricePerUnit: (typeof s.price === 'number' && typeof s.areaTotal === 'number') ? s.price / s.areaTotal : 0,
       date: new Date().toISOString(),
-      source: s.source + (s.url ? ` (${s.url})` : ''),
+      source: s.source || 'Pesquisa Web',
+      url: s.url || '',
       urbanSubType: data.urbanSubType,
       bedrooms: s.bedrooms || 0,
       bathrooms: s.bathrooms || 0,

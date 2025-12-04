@@ -1,3 +1,4 @@
+
 export enum PropertyType {
   URBAN = 'URBANO',
   RURAL = 'RURAL',
@@ -54,6 +55,7 @@ export interface MarketSample {
   pricePerUnit: number; // Calculado
   date: string;
   source: string;
+  url?: string; // Novo campo para link direto
   
   // Campos Urbanos Específicos
   urbanSubType?: string;

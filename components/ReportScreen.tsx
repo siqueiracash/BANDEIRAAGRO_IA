@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { ValuationResult, PropertyData } from '../types';
 

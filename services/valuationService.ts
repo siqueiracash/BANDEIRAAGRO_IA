@@ -1,3 +1,4 @@
+
 import { PropertyData, ValuationResult, PropertyType, MarketSample } from "../types";
 import { filterSamples, getSamplesByCities } from "./storageService";
 import { getNeighboringCities, findUrbanSamples } from "./geminiService";
@@ -531,7 +532,11 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
                           <span class="font-bold text-green-800 block text-xs uppercase mb-1">Localização</span> ${s.city}
                       </div>
                       <div class="p-3 border-b border-gray-300 bg-gray-50">
-                          <span class="font-bold text-green-800 block text-xs uppercase mb-1">Fonte</span> <span class="text-blue-700 break-words text-[10px]">${s.source || 'Pesquisa de Mercado'}</span>
+                          <span class="font-bold text-green-800 block text-xs uppercase mb-1">Fonte</span> 
+                          ${s.url 
+                            ? `<a href="${s.url}" target="_blank" class="text-blue-700 underline break-words text-[10px] hover:text-blue-900">${s.source} (Ver Anúncio)</a>` 
+                            : `<span class="text-blue-700 break-words text-[10px]">${s.source || 'Pesquisa de Mercado'}</span>`
+                          }
                       </div>
                       <div class="p-3 border-r border-b border-gray-300">
                            <span class="font-bold text-green-800 block text-xs uppercase mb-1">Área Total</span> ${fmtDec(s.areaTotal)} ${unitStr}
