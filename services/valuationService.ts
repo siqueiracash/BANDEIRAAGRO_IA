@@ -148,12 +148,27 @@ const calculateSimilarity = (target: PropertyData, sample: MarketSample): number
   return score;
 };
 
+// Retorna o valor de t-Student para 70% de confiança (Bicaudal, alpha=0.30)
+const getTStudent70 = (n: number) => {
+    // Graus de liberdade (df) = n - 1
+    // Tabela aprox para 70% Confiança
+    const map: Record<number, number> = {
+        1: 1.963, // df=1 (n=2)
+        2: 1.386, // df=2 (n=3)
+        3: 1.250, // df=3 (n=4)
+        4: 1.190, // df=4 (n=5)
+        5: 1.156, // df=5 (n=6)
+    };
+    // Para n maior, tende a 1.04
+    return map[n-1] || 1.04;
+};
+
 export const generateManualValuation = async (data: PropertyData): Promise<ValuationResult> => {
   await new Promise(resolve => setTimeout(resolve, 500));
 
   const isRural = data.type === PropertyType.RURAL;
   const subType = isRural ? data.ruralActivity : data.urbanSubType;
-  const TARGET_SAMPLE_COUNT = 5; // Regra estrita: 5 amostras
+  const TARGET_SAMPLE_COUNT = 5; // Regra estrita inicial: 5 amostras
   
   // Lista de Candidatos Únicos (Map para evitar duplicatas por ID)
   const candidatesMap = new Map<string, MarketSample>();
@@ -208,19 +223,17 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
     }))
     .sort((a, b) => b.score - a.score);
 
-  // Seleciona EXATAMENTE as top 5 (ou menos, se não houver 5 disponíveis)
-  const samples = rankedCandidates.slice(0, TARGET_SAMPLE_COUNT).map(item => item.sample);
+  // Seleciona as top amostras
+  const initialSamples = rankedCandidates.slice(0, TARGET_SAMPLE_COUNT).map(item => item.sample);
   
-  const hasSamples = samples.length > 0;
   const unitStr = isRural ? 'ha' : 'm²';
-  const OFFER_FACTOR = 0.90; // Fator de Oferta Obrigatório (10% de desconto sobre o valor pedido)
+  const OFFER_FACTOR = 0.90; // Fator de Oferta Obrigatório
 
-  // --- 3. CÁLCULOS E HOMOGENEIZAÇÃO ---
+  // --- 3. HOMOGENEIZAÇÃO INICIAL ---
   let homogenizedSamples: any[] = [];
-  let sumHomogenizedUnit = 0;
 
-  if (hasSamples) {
-    homogenizedSamples = samples.map(sample => {
+  if (initialSamples.length > 0) {
+    homogenizedSamples = initialSamples.map(sample => {
       let unitPrice = sample.pricePerUnit;
       let appliedFactorsList: { name: string, value: number, desc: string }[] = [];
       
@@ -230,7 +243,7 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
 
       // --- HOMOGENEIZAÇÃO RURAL COMPLETA ---
       if (isRural) {
-        // 2. Fator Dimensão (Gleba) - Baseado na Tabela
+        // 2. Fator Dimensão (Gleba)
         const factorSubjectDim = getDimensionFactor(data.areaTotal);
         const factorSampleDim = getDimensionFactor(sample.areaTotal);
         const factorDim = factorSubjectDim / factorSampleDim;
@@ -285,10 +298,7 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
         const factorImp = coefSubjectImp / coefSampleImp;
         unitPrice = unitPrice * factorImp;
         appliedFactorsList.push({ name: 'Benfeitorias', value: factorImp, desc: 'Constr.' });
-
       }
-
-      sumHomogenizedUnit += unitPrice;
 
       return {
         ...sample,
@@ -298,30 +308,61 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
     });
   }
 
-  // Estatísticas Básicas
-  const count = homogenizedSamples.length;
+  // --- 4. SANEAMENTO DE AMOSTRAS (FILTRAGEM POR PRECISÃO) ---
+  // Remove outliers que desviam mais de 30% da média para atingir o grau de precisão.
+  // Mantém no mínimo 3 amostras se possível.
+  
+  let validSamples = [...homogenizedSamples];
+  let saneamentoDone = false;
+  let loops = 0;
+
+  while (!saneamentoDone && loops < 3 && validSamples.length > 3) {
+      const currentSum = validSamples.reduce((acc, s) => acc + s.homogenizedUnitPrice, 0);
+      const currentAvg = currentSum / validSamples.length;
+      
+      let maxDev = 0;
+      let removeIndex = -1;
+
+      // Encontra a amostra com maior desvio
+      validSamples.forEach((s, idx) => {
+          const dev = Math.abs(s.homogenizedUnitPrice - currentAvg) / currentAvg;
+          if (dev > 0.30 && dev > maxDev) {
+              maxDev = dev;
+              removeIndex = idx;
+          }
+      });
+
+      if (removeIndex !== -1) {
+          // Remove o outlier
+          validSamples.splice(removeIndex, 1);
+          loops++;
+      } else {
+          saneamentoDone = true;
+      }
+  }
+
+  // --- 5. ESTATÍSTICAS FINAIS (Com amostras saneadas) ---
+  const count = validSamples.length;
+  const hasSamples = count > 0;
+  const sumHomogenizedUnit = validSamples.reduce((acc, s) => acc + s.homogenizedUnitPrice, 0);
   const avgHomogenizedUnitPrice = hasSamples ? (sumHomogenizedUnit / count) : 0;
   
   // Cálculo do Desvio Padrão
   let variance = 0;
   if (count > 1) {
-    variance = homogenizedSamples.reduce((acc, val) => acc + Math.pow(val.homogenizedUnitPrice - avgHomogenizedUnitPrice, 2), 0) / (count - 1);
+    variance = validSamples.reduce((acc, val) => acc + Math.pow(val.homogenizedUnitPrice - avgHomogenizedUnitPrice, 2), 0) / (count - 1);
   }
   const stdDev = Math.sqrt(variance);
   const coeffVariation = avgHomogenizedUnitPrice > 0 ? (stdDev / avgHomogenizedUnitPrice) : 0;
   
-  // Grau de Precisão (NBR 14653)
-  // Classificação Rigorosa: III (<=10%), II (<=15%), I (<=25% - aceitável)
+  // Grau de Precisão
   let precisionGrade = "Fora de Grau";
   if (coeffVariation <= 0.10) precisionGrade = "III";
   else if (coeffVariation <= 0.15) precisionGrade = "II";
-  else if (coeffVariation <= 0.25) precisionGrade = "I"; // Margem um pouco mais flexível para I
+  else if (coeffVariation <= 0.25) precisionGrade = "I"; 
   
-  // Nota: Se > 0.25 (ou 0.30 em alguns contextos), é considerado fora das especificações normais.
-
-  // Intervalo de Confiança (80% - t-student simplificado para n=5 aprox 1.533)
-  // Para n=5, t=1.533 (80%). Ajustado para n=5 fixo = 1.533
-  const tStudent = 1.533; 
+  // Intervalo de Confiança (70% - Ajustado para n amostras)
+  const tStudent = getTStudent70(count); 
   const confidenceInterval = count > 0 ? tStudent * (stdDev / Math.sqrt(count)) : 0;
   const minInterval = avgHomogenizedUnitPrice - confidenceInterval;
   const maxInterval = avgHomogenizedUnitPrice + confidenceInterval;
@@ -336,8 +377,6 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
   const marketValue = avgHomogenizedUnitPrice * refArea;
 
   // --- CÁLCULO DE LIQUIDAÇÃO FORÇADA ---
-  // Taxa: 1.51% a.m.
-  // Prazo: 24 meses
   const liquidityRate = 0.0151; 
   const liquidityMonths = 24;
   const liquidityFactor = 1 / Math.pow(1 + liquidityRate, liquidityMonths);
@@ -349,11 +388,12 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
   const currentDate = new Date().toLocaleDateString('pt-BR');
 
   // --- PAGINAÇÃO DE AMOSTRAS (ANEXO 01) ---
-  const samplesPerPage = 2; // Máximo 2 amostras por página
+  // Exibimos as amostras VÁLIDAS
+  const samplesPerPage = 2; 
   const sampleChunks = [];
-  for (let i = 0; i < samples.length; i += samplesPerPage) {
+  for (let i = 0; i < validSamples.length; i += samplesPerPage) {
     sampleChunks.push({
-      chunk: samples.slice(i, i + samplesPerPage),
+      chunk: validSamples.slice(i, i + samplesPerPage),
       index: i,
       pageIndex: Math.floor(i / samplesPerPage)
     });
@@ -578,7 +618,7 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
     <div class="report-section p-8">
        <h2 class="text-2xl font-serif font-bold text-gray-800 text-center uppercase mb-10">13 - ANEXO Nº 03<br/><span class="text-lg font-normal">MEMÓRIA DE CÁLCULO</span></h2>
 
-       <h3 class="font-bold text-gray-800 mb-4 uppercase text-sm border-b border-gray-400 pb-1">Elementos Coletados</h3>
+       <h3 class="font-bold text-gray-800 mb-4 uppercase text-sm border-b border-gray-400 pb-1">Elementos Coletados (Saneados)</h3>
        <div class="overflow-x-auto mb-8">
          <table class="w-full text-xs text-center border border-gray-300">
             <thead class="bg-green-700 text-white font-bold">
@@ -591,7 +631,7 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
                 </tr>
             </thead>
             <tbody>
-                ${homogenizedSamples.map((s, i) => `
+                ${validSamples.map((s, i) => `
                 <tr class="${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}">
                     <td class="p-2 border border-gray-300 font-bold">${i + 1}</td>
                     <td class="p-2 border border-gray-300">${fmtBRL(s.price)}</td>
@@ -623,11 +663,11 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
                 </tr>
             </thead>
             <tbody>
-               ${homogenizedSamples.map((s, i) => {
+               ${validSamples.map((s, i) => {
                   const findF = (name: string) => s.factors?.find((f:any) => f.name === name)?.value || 1.00;
                   const other = findF('Solo') * findF('Ocupação') * findF('Benfeitorias') * findF('Melhoramentos');
                   
-                  // Highlight logic: Se desviar mais que 30% da média, marca em vermelho
+                  // Highlight logic: Se desviar mais que 30% da média, marca em vermelho (mas não deve acontecer após saneamento)
                   const deviation = Math.abs(s.homogenizedUnitPrice - avgHomogenizedUnitPrice) / avgHomogenizedUnitPrice;
                   const isOutlier = deviation > 0.30;
 
@@ -665,7 +705,7 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
           </div>
           <div>
               <table class="w-full border border-gray-300">
-                  <tr class="bg-gray-100"><td class="p-2 font-bold">Intervalo Confiança (80%)</td><td class="p-2 text-right"></td></tr>
+                  <tr class="bg-gray-100"><td class="p-2 font-bold">Intervalo Confiança (70%)</td><td class="p-2 text-right"></td></tr>
                   <tr><td class="p-2">Mínimo</td><td class="p-2 text-right">${fmtBRL(minInterval)}</td></tr>
                   <tr><td class="p-2">Máximo</td><td class="p-2 text-right">${fmtBRL(maxInterval)}</td></tr>
                   <tr class="bg-gray-100"><td class="p-2 font-bold">Amplitude</td><td class="p-2 text-right">${fmtBRL(maxInterval - minInterval)}</td></tr>
@@ -705,7 +745,7 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
 
   return {
     reportText,
-    sources: homogenizedSamples,
+    sources: validSamples,
     estimatedValue: hasSamples ? fmtBRL(marketValue) : 'N/A'
   };
 };
