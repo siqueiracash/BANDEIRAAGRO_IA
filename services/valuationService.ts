@@ -415,7 +415,7 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
             </div>
             <div class="flex flex-col md:flex-row">
                 <span class="w-48 font-serif font-bold text-gray-800">TIPO DE IMÓVEL</span>
-                <span class="flex-1 text-gray-700">${isRural ? 'Rural' : 'Urbano'} (${subType})</span>
+                <span class="flex-1 text-gray-700">${isRural ? 'Rural' : 'Urbano'}</span>
             </div>
              <div class="flex flex-col md:flex-row">
                 <span class="w-48 font-serif font-bold text-gray-800">ATIVIDADE PREDOMINANTE</span>
