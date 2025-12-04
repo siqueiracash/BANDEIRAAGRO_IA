@@ -7,7 +7,7 @@ import ReportScreen from './components/ReportScreen';
 import LoginScreen from './components/LoginScreen';
 import AdminDashboard from './components/AdminDashboard';
 import { AppStep, PropertyData, PropertyType, ValuationResult } from './types';
-import { generateManualValuation } from './services/valuationService';
+import { generateManualValuation, generateUrbanAutomatedValuation } from './services/valuationService';
 import { INITIAL_PROPERTY_DATA } from './constants';
 
 const App: React.FC = () => {
@@ -25,7 +25,16 @@ const App: React.FC = () => {
     setCurrentStep(AppStep.LOADING);
     
     try {
-      const result = await generateManualValuation(data);
+      let result;
+      // RURAL -> BANCO DE DADOS
+      if (data.type === PropertyType.RURAL) {
+        result = await generateManualValuation(data);
+      } 
+      // URBANO -> INTELIGÊNCIA ARTIFICIAL (WEB SEARCH)
+      else {
+        result = await generateUrbanAutomatedValuation(data);
+      }
+      
       setValuationResult(result);
       setCurrentStep(AppStep.RESULT);
     } catch (error) {

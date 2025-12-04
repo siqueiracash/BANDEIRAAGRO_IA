@@ -100,6 +100,22 @@ const StepForm: React.FC<StepFormProps> = ({ propertyType, initialData, onSubmit
           </div>
         </div>
 
+        {/* MUDANÇA: Campo Bairro movido para cá se for Urbano */}
+        {!isRural && (
+          <div className="md:col-span-3">
+             <label className="block text-sm font-medium text-gray-700 mb-1">Bairro *</label>
+             <input
+              type="text"
+              name="neighborhood"
+              required
+              value={formData.neighborhood}
+              className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-agro-500"
+              placeholder="Ex: Centro, Vila Madalena"
+              onChange={handleChange}
+            />
+          </div>
+        )}
+
         <div className="md:col-span-2">
            <label className="block text-sm font-medium text-gray-700 mb-1">Endereço / Localização</label>
            <input
@@ -239,7 +255,7 @@ const StepForm: React.FC<StepFormProps> = ({ propertyType, initialData, onSubmit
           </div>
         )}
 
-        {/* --- CAMPOS URBANOS SIMPLES --- */}
+        {/* --- CAMPOS URBANOS --- */}
         {!isRural && (
           <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -249,6 +265,7 @@ const StepForm: React.FC<StepFormProps> = ({ propertyType, initialData, onSubmit
                      <option value="Apartamento">Apartamento</option>
                      <option value="Casa">Casa</option>
                      <option value="Sobrado">Sobrado</option>
+                     <option value="Terreno">Terreno</option> {/* Opção Adicionada */}
                      <option value="Prédio Comercial">Prédio Comercial</option>
                    </select>
                 </div>
@@ -256,13 +273,22 @@ const StepForm: React.FC<StepFormProps> = ({ propertyType, initialData, onSubmit
                    <label className="block text-sm font-bold text-gray-700 mb-1">Área Total (m²)</label>
                    <input type="number" name="areaTotal" required min="0" value={formData.areaTotal || ''} className="w-full border border-gray-300 rounded-lg px-3 py-2" onChange={handleChange} />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Bairro</label>
-                  <input type="text" name="neighborhood" value={formData.neighborhood} className="w-full border border-gray-300 rounded-lg px-3 py-2" onChange={handleChange} />
-                </div>
-                <div>
-                   <label className="block text-sm font-medium text-gray-700 mb-1">Quartos</label>
-                   <input type="number" name="bedrooms" min="0" value={formData.bedrooms || ''} className="w-full border border-gray-300 rounded-lg px-3 py-2" onChange={handleChange} />
+                {/* Bairro foi movido para o topo */}
+                
+                {/* MUDANÇA: Campos de Quartos, Banheiros e Vagas em Grid */}
+                <div className="md:col-span-2 grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Quartos</label>
+                    <input type="number" name="bedrooms" min="0" value={formData.bedrooms || ''} className="w-full border border-gray-300 rounded-lg px-3 py-2" onChange={handleChange} placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Banheiros</label>
+                    <input type="number" name="bathrooms" min="0" value={formData.bathrooms || ''} className="w-full border border-gray-300 rounded-lg px-3 py-2" onChange={handleChange} placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Vagas</label>
+                    <input type="number" name="parking" min="0" value={formData.parking || ''} className="w-full border border-gray-300 rounded-lg px-3 py-2" onChange={handleChange} placeholder="0" />
+                  </div>
                 </div>
              </div>
           </div>

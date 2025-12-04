@@ -1,6 +1,6 @@
 import { PropertyData, ValuationResult, PropertyType, MarketSample } from "../types";
 import { filterSamples, getSamplesByCities } from "./storageService";
-import { getNeighboringCities } from "./geminiService";
+import { getNeighboringCities, findUrbanSamples } from "./geminiService";
 
 // --- TABELAS DE COEFICIENTES (Conforme imagem fornecida) ---
 
@@ -141,8 +141,14 @@ const calculateSimilarity = (target: PropertyData, sample: MarketSample): number
     if (target.occupation && target.occupation === sample.occupation) score += 50;
   } else {
     // Bonificação para urbanos
-    if (target.bedrooms && Math.abs(target.bedrooms - (sample.bedrooms || 0)) <= 1) score += 50;
-    if (target.conservationState === sample.conservationState) score += 50;
+    // Quartos
+    if (target.bedrooms && Math.abs(target.bedrooms - (sample.bedrooms || 0)) <= 1) score += 30;
+    // Banheiros
+    if (target.bathrooms && Math.abs(target.bathrooms - (sample.bathrooms || 0)) <= 1) score += 20;
+    // Vagas
+    if (target.parking && Math.abs(target.parking - (sample.parking || 0)) <= 1) score += 20;
+    
+    if (target.conservationState === sample.conservationState) score += 30;
   }
 
   return score;
@@ -177,77 +183,17 @@ function getCombinations<T>(array: T[], size: number): T[][] {
   return p([], 0);
 }
 
-export const generateManualValuation = async (data: PropertyData): Promise<ValuationResult> => {
-  await new Promise(resolve => setTimeout(resolve, 500));
-
+// =========================================================================================
+// CORE ENGINE: CALCULA E GERA O HTML
+// =========================================================================================
+const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSample[]): ValuationResult => {
+    
   const isRural = data.type === PropertyType.RURAL;
-  const subType = isRural ? data.ruralActivity : data.urbanSubType;
-  
-  // SOLICITAÇÃO: Sempre usar 5 amostras para cálculo.
-  // ESTRATÉGIA: Buscar um pool maior (ex: 12) e encontrar a combinação de 5 que gera o menor Coeficiente de Variação.
-  const TARGET_SAMPLE_COUNT = 5; 
-  const CANDIDATE_POOL_SIZE = 12; // Buffer para saneamento e trocas
-  
-  // Lista de Candidatos Únicos (Map para evitar duplicatas por ID)
-  const candidatesMap = new Map<string, MarketSample>();
-  
-  const addCandidates = (newSamples: MarketSample[]) => {
-    newSamples.forEach(s => {
-      if (!candidatesMap.has(s.id)) {
-        candidatesMap.set(s.id, s);
-      }
-    });
-  };
-
-  // --- 1. COLETA DE CANDIDATOS (BUSCA ABRANGENTE) ---
-  
-  // A. Busca na Cidade Alvo (Mesmo subtipo)
-  const citySamplesExact = await filterSamples(data.type, data.city, data.state, subType);
-  addCandidates(citySamplesExact);
-
-  // B. Busca na Cidade Alvo (Qualquer subtipo - Fallback)
-  const citySamplesGeneral = await filterSamples(data.type, data.city, data.state);
-  addCandidates(citySamplesGeneral);
-
-  // C. Busca em Cidades Vizinhas (Geograficamente próximas)
-  try {
-    const neighborCities = await getNeighboringCities(data.city, data.state);
-    if (neighborCities.length > 0) {
-      const neighborSamples = await getSamplesByCities(neighborCities, data.state, data.type);
-      addCandidates(neighborSamples);
-    }
-  } catch (err) {
-    console.warn("Falha ao buscar cidades vizinhas:", err);
-  }
-
-  // D. Busca Regional/Estadual (Último recurso se tivermos poucos candidatos)
-  if (candidatesMap.size < TARGET_SAMPLE_COUNT) {
-    try {
-      const stateSamples = await filterSamples(data.type, "", data.state);
-      addCandidates(stateSamples);
-    } catch (err) {
-      console.warn("Falha ao buscar amostras estaduais:", err);
-    }
-  }
-
-  // --- 2. SELEÇÃO E HOMOGENEIZAÇÃO DO POOL ---
-  const allCandidates = Array.from(candidatesMap.values());
-  
-  // Ordena por similaridade para pegar o POOL de candidatos mais relevantes
-  const rankedCandidates = allCandidates
-    .map(sample => ({
-      sample,
-      score: calculateSimilarity(data, sample)
-    }))
-    .sort((a, b) => b.score - a.score);
-
-  // Seleciona o POOL (Ex: Top 12)
-  const poolSamples = rankedCandidates.slice(0, CANDIDATE_POOL_SIZE).map(item => item.sample);
-  
   const unitStr = isRural ? 'ha' : 'm²';
   const OFFER_FACTOR = 0.90; // Fator de Oferta Obrigatório
+  const TARGET_SAMPLE_COUNT = 5;
 
-  // Homogeneiza TODOS do pool
+  // 1. Homogeneização do Pool
   const homogenizedPool = poolSamples.map(sample => {
     let unitPrice = sample.pricePerUnit;
     let appliedFactorsList: { name: string, value: number, desc: string }[] = [];
@@ -322,15 +268,10 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
     };
   });
 
-  // --- 3. SELEÇÃO DO MELHOR CONJUNTO DE 5 AMOSTRAS (COMBINATÓRIA) ---
-  // A regra agora é: SEMPRE usar 5 amostras (se houver disponíveis).
-  // Se houver mais que 5 no pool, encontramos a combinação que minimiza o CV (melhor precisão).
-  
+  // 2. Seleção Estatística (Combinatória para menor Coef. Variação)
   let validSamples = [...homogenizedPool];
   
   if (homogenizedPool.length >= TARGET_SAMPLE_COUNT) {
-      // Gera todas as combinações possíveis de 5 elementos a partir do pool
-      // Para um pool de 12, isso são 792 combinações. Rápido para JS.
       const combinations = getCombinations(homogenizedPool, TARGET_SAMPLE_COUNT);
       
       let bestCombination: any[] = [];
@@ -354,15 +295,13 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
           validSamples = bestCombination;
       }
   } 
-  // Se tiver menos que 5 (ex: só tem 3 no banco), usa todas as que tem.
 
-  // --- 4. ESTATÍSTICAS FINAIS (Com as 5 amostras selecionadas) ---
+  // 3. Estatísticas Finais
   const count = validSamples.length;
   const hasSamples = count > 0;
   const sumHomogenizedUnit = validSamples.reduce((acc, s) => acc + s.homogenizedUnitPrice, 0);
   const avgHomogenizedUnitPrice = hasSamples ? (sumHomogenizedUnit / count) : 0;
   
-  // Cálculo do Desvio Padrão
   let variance = 0;
   if (count > 1) {
     variance = validSamples.reduce((acc, val) => acc + Math.pow(val.homogenizedUnitPrice - avgHomogenizedUnitPrice, 2), 0) / (count - 1);
@@ -370,28 +309,23 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
   const stdDev = Math.sqrt(variance);
   const coeffVariation = avgHomogenizedUnitPrice > 0 ? (stdDev / avgHomogenizedUnitPrice) : 0;
   
-  // Grau de Precisão
   let precisionGrade = "Fora de Grau";
   if (coeffVariation <= 0.10) precisionGrade = "III";
   else if (coeffVariation <= 0.15) precisionGrade = "II";
   else if (coeffVariation <= 0.25) precisionGrade = "I"; 
   
-  // Intervalo de Confiança (70% - Ajustado para n amostras)
   const tStudent = getTStudent70(count); 
   const confidenceInterval = count > 0 ? tStudent * (stdDev / Math.sqrt(count)) : 0;
   const minInterval = avgHomogenizedUnitPrice - confidenceInterval;
   const maxInterval = avgHomogenizedUnitPrice + confidenceInterval;
 
-  // Área de Referência
   let refArea = data.areaTotal;
   if (!isRural && data.areaBuilt && data.areaBuilt > 0) {
     refArea = data.areaBuilt;
   }
 
-  // Valor de Mercado
   const marketValue = avgHomogenizedUnitPrice * refArea;
 
-  // --- CÁLCULO DE LIQUIDAÇÃO FORÇADA ---
   const liquidityRate = 0.0151; 
   const liquidityMonths = 24;
   const liquidityFactor = 1 / Math.pow(1 + liquidityRate, liquidityMonths);
@@ -402,8 +336,7 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
   const fmtDec = (v: number, d = 2) => v.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
   const currentDate = new Date().toLocaleDateString('pt-BR');
 
-  // --- PAGINAÇÃO DE AMOSTRAS (ANEXO 01) ---
-  // Exibimos as amostras VÁLIDAS
+  // Paginação
   const samplesPerPage = 2; 
   const sampleChunks = [];
   for (let i = 0; i < validSamples.length; i += samplesPerPage) {
@@ -414,16 +347,13 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
     });
   }
 
+  // --- GERAÇÃO DO HTML (Reutilizado) ---
   const reportText = `
     <!-- CAPA -->
     <div class="report-cover flex flex-col items-center justify-center min-h-[1000px] text-center p-10 bg-white relative">
-      
-      <!-- LOGOMARCA CENTRALIZADA BANDEIRA AGRO -->
       <div class="mb-12 flex flex-col items-center justify-center">
           <svg width="128" height="128" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <!-- Círculo Laranja -->
             <circle cx="100" cy="100" r="90" stroke="#f97316" stroke-width="12" fill="none" />
-            <!-- Folha Verde Estilizada -->
             <path d="M40 160 Q 90 110 160 50" stroke="#15803d" stroke-width="0" fill="none" />
             <path d="M50 150 C 50 150, 70 110, 80 90 C 90 70, 140 40, 160 30 C 140 50, 110 80, 100 100 C 90 120, 70 160, 60 170 Z" fill="#15803d" />
             <path d="M60 160 C 60 160, 80 130, 90 110 C 100 90, 130 70, 150 60 C 130 80, 110 100, 100 120 C 90 140, 70 170, 60 170 Z" fill="#14532d" opacity="0.6" />
@@ -596,7 +526,7 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
                           <span class="font-bold text-green-800 block text-xs uppercase mb-1">Localização</span> ${s.city}
                       </div>
                       <div class="p-3 border-b border-gray-300 bg-gray-50">
-                          <span class="font-bold text-green-800 block text-xs uppercase mb-1">Fonte</span> ${s.source || 'Pesquisa de Mercado'}
+                          <span class="font-bold text-green-800 block text-xs uppercase mb-1">Fonte</span> <span class="text-blue-700 break-words">${s.source || 'Pesquisa de Mercado'}</span>
                       </div>
                       <div class="p-3 border-r border-b border-gray-300">
                            <span class="font-bold text-green-800 block text-xs uppercase mb-1">Área Total</span> ${fmtDec(s.areaTotal)} ${unitStr}
@@ -606,7 +536,7 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
                       </div>
                       <div class="p-3 border-r border-gray-300">
                           <span class="font-bold text-green-800 block text-xs uppercase mb-1">Descrição</span>
-                          ${s.title || 'Imóvel Rural'}
+                          ${s.title || (isRural ? 'Imóvel Rural' : 'Imóvel Urbano')}
                       </div>
                       <div class="p-3">
                           <span class="font-bold text-green-800 block text-xs uppercase mb-1">Características</span>
@@ -617,7 +547,26 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
                                <div>Topo: <strong>${s.topography || '-'}</strong></div>
                             </div>` 
                             : 
-                            `Tipo: ${s.urbanSubType}<br/>Bairro: ${s.neighborhood || '-'}`
+                            `
+                            <div class="grid grid-cols-3 gap-1 text-xs text-center text-gray-600">
+                               <div class="bg-gray-100 rounded p-1">
+                                 <div class="font-bold text-gray-800">${s.bedrooms || 0}</div>
+                                 <div class="text-[10px] uppercase">Dorm</div>
+                               </div>
+                               <div class="bg-gray-100 rounded p-1">
+                                 <div class="font-bold text-gray-800">${s.bathrooms || 0}</div>
+                                 <div class="text-[10px] uppercase">Banho</div>
+                               </div>
+                               <div class="bg-gray-100 rounded p-1">
+                                 <div class="font-bold text-gray-800">${s.parking || 0}</div>
+                                 <div class="text-[10px] uppercase">Vagas</div>
+                               </div>
+                            </div>
+                            <div class="mt-2 text-xs text-gray-600">
+                               Tipo: <strong>${s.urbanSubType}</strong><br/>
+                               Bairro: ${s.neighborhood || '-'}
+                            </div>
+                            `
                           }
                       </div>
                   </div>
@@ -682,7 +631,7 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
                   const findF = (name: string) => s.factors?.find((f:any) => f.name === name)?.value || 1.00;
                   const other = findF('Solo') * findF('Ocupação') * findF('Benfeitorias') * findF('Melhoramentos');
                   
-                  // Highlight logic: Se desviar mais que 30% da média, marca em vermelho (mas não deve acontecer após saneamento)
+                  // Highlight logic
                   const deviation = Math.abs(s.homogenizedUnitPrice - avgHomogenizedUnitPrice) / avgHomogenizedUnitPrice;
                   const isOutlier = deviation > 0.30;
 
@@ -744,7 +693,7 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
        </p>
        
        <p class="mb-4 text-gray-700">
-         A fundamentação de valores utilizou como base o <strong>Banco de Dados de Amostras da Bandeira Agro</strong> e dados de mercado disponíveis publicamente. A Bandeira Agro não se responsabiliza por divergências entre as informações inseridas no sistema e a realidade fática do imóvel que apenas uma inspeção presencial detalhada poderia constatar (como estado real de conservação das benfeitorias, invasões, pragas, passivos ambientais ou discrepâncias de área física vs. documental).
+         A fundamentação de valores utilizou como base ${isRural ? 'o <strong>Banco de Dados de Amostras da Bandeira Agro</strong> e dados de mercado internos.' : 'uma <strong>Pesquisa de Mercado Automatizada em Portais Imobiliários</strong> através de Inteligência Artificial.'} A Bandeira Agro não se responsabiliza por divergências entre as informações inseridas no sistema e a realidade fática do imóvel.
        </p>
        
        <p class="mb-4 text-gray-700">
@@ -763,4 +712,87 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
     sources: validSamples,
     estimatedValue: hasSamples ? fmtBRL(marketValue) : 'N/A'
   };
+};
+
+/**
+ * GERAÇÃO DE AVALIAÇÃO MANUAL (BANCO DE DADOS - RURAL)
+ */
+export const generateManualValuation = async (data: PropertyData): Promise<ValuationResult> => {
+  await new Promise(resolve => setTimeout(resolve, 500));
+
+  const subType = data.type === PropertyType.RURAL ? data.ruralActivity : data.urbanSubType;
+  const CANDIDATE_POOL_SIZE = 12; 
+  
+  const candidatesMap = new Map<string, MarketSample>();
+  const addCandidates = (newSamples: MarketSample[]) => {
+    newSamples.forEach(s => {
+      if (!candidatesMap.has(s.id)) candidatesMap.set(s.id, s);
+    });
+  };
+
+  // 1. Coleta do DB
+  const citySamplesExact = await filterSamples(data.type, data.city, data.state, subType);
+  addCandidates(citySamplesExact);
+
+  const citySamplesGeneral = await filterSamples(data.type, data.city, data.state);
+  addCandidates(citySamplesGeneral);
+
+  try {
+    const neighborCities = await getNeighboringCities(data.city, data.state);
+    if (neighborCities.length > 0) {
+      const neighborSamples = await getSamplesByCities(neighborCities, data.state, data.type);
+      addCandidates(neighborSamples);
+    }
+  } catch (err) {
+    console.warn("Falha ao buscar cidades vizinhas:", err);
+  }
+
+  if (candidatesMap.size < 5) {
+    try {
+      const stateSamples = await filterSamples(data.type, "", data.state);
+      addCandidates(stateSamples);
+    } catch (err) {
+      console.warn("Falha ao buscar amostras estaduais:", err);
+    }
+  }
+
+  // 2. Ordenação e Corte
+  const allCandidates = Array.from(candidatesMap.values());
+  const rankedCandidates = allCandidates
+    .map(sample => ({
+      sample,
+      score: calculateSimilarity(data, sample)
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  const poolSamples = rankedCandidates.slice(0, CANDIDATE_POOL_SIZE).map(item => item.sample);
+
+  // 3. Cálculo
+  return calculateAndGenerateReport(data, poolSamples);
+};
+
+/**
+ * GERAÇÃO DE AVALIAÇÃO AUTOMATIZADA (IA WEB SEARCH - URBANO)
+ */
+export const generateUrbanAutomatedValuation = async (data: PropertyData): Promise<ValuationResult> => {
+    // 1. Busca via Gemini Search (Retorna ~8 amostras)
+    const samples = await findUrbanSamples(data);
+    
+    if (samples.length === 0) {
+        throw new Error("Não foi possível encontrar amostras de mercado online suficientes. Tente novamente ou verifique os dados de entrada.");
+    }
+
+    // 2. Ordenação por similaridade (Embora a IA já deva filtrar, aplicamos a lógica local para garantir)
+    const rankedCandidates = samples
+    .map(sample => ({
+      sample,
+      score: calculateSimilarity(data, sample)
+    }))
+    .sort((a, b) => b.score - a.score);
+
+    // Pegamos todos os que vieram (normalmente 5 a 8) e deixamos a combinatória do cálculo resolver o melhor conjunto de 5
+    const poolSamples = rankedCandidates.map(item => item.sample);
+
+    // 3. Cálculo
+    return calculateAndGenerateReport(data, poolSamples);
 };
