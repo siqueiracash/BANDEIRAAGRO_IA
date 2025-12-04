@@ -425,7 +425,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                  </select>
               </div>
 
-              {/* CAMPOS COMUNS (CIDADE, PREÇO) - ÁREA TOTAL REMOVIDA DAQUI */}
+              {/* CAMPOS COMUNS (CIDADE, ESTADO APENAS) */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
                  <div>
                     <label className="block text-sm font-bold mb-1">Cidade *</label>
@@ -437,25 +437,27 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                        <option value="">UF</option>{BRAZIL_STATES.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                  </div>
-                 <div className="md:col-span-2">
-                    <label className="block text-sm font-bold mb-1">Valor Total (R$) *</label>
-                    <input type="text" value={priceDisplay} onChange={handlePriceChange} className="w-full border p-2 rounded font-bold" required />
-                 </div>
               </div>
 
-              {/* FORMULÁRIO URBANO ESPECÍFICO - LAYOUT IDÊNTICO AO STEPFORM */}
+              {/* FORMULÁRIO URBANO ESPECÍFICO - ORDEM REQUISITADA */}
               {!isRural && (
                 <div className="space-y-4 pt-2">
-                   {/* BAIRRO (EM CIMA, COMO NO STEPFORM) */}
+                   {/* 1. BAIRRO */}
                    <div className="md:col-span-2">
                       <label className="block text-sm font-bold text-gray-700 mb-1">Bairro *</label>
                       <input name="neighborhood" value={form.neighborhood || ''} onChange={handleChange} className="w-full border p-2 rounded" placeholder="Ex: Centro, Vila Madalena" />
                    </div>
                    
-                   {/* ENDEREÇO (LOGO ABAIXO) */}
+                   {/* 2. ENDEREÇO */}
                    <div className="md:col-span-2">
                       <label className="block text-sm font-bold text-gray-700 mb-1">Endereço / Localização</label>
                       <input name="address" value={form.address || ''} onChange={handleChange} className="w-full border p-2 rounded" placeholder="Ex: Rua das Flores, 123" />
+                   </div>
+
+                   {/* 3. VALOR TOTAL (MOVIDO DO CABEÇALHO PARA CÁ) */}
+                   <div className="md:col-span-2">
+                      <label className="block text-sm font-bold text-gray-700 mb-1">Valor Total (R$) *</label>
+                      <input type="text" value={priceDisplay} onChange={handlePriceChange} className="w-full border p-2 rounded font-bold" required />
                    </div>
 
                    {/* BOX CINZA COM DETALHES DO IMÓVEL */}
@@ -473,7 +475,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                             </select>
                          </div>
                          
-                         {/* ÁREA TOTAL (MOVIDA PARA CÁ) */}
+                         {/* ÁREA TOTAL */}
                          <div>
                             <label className="block text-sm font-bold text-gray-700 mb-1">Área Total (m²) *</label>
                             <input type="number" name="areaTotal" value={form.areaTotal || ''} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2" required min="0" />
@@ -515,10 +517,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
               {/* FORMULÁRIO RURAL */}
               {isRural && (
+                <>
+                {/* VALOR TOTAL - REINSERIDO AQUI PARA RURAL */}
+                <div className="md:col-span-2 pt-4">
+                   <label className="block text-sm font-bold mb-1">Valor Total (R$) *</label>
+                   <input type="text" value={priceDisplay} onChange={handlePriceChange} className="w-full border p-2 rounded font-bold" required />
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded bg-green-50 mt-4 animate-fade-in">
                    <h3 className="md:col-span-2 font-bold text-green-800 text-lg border-b border-green-200 pb-2">Detalhes Rurais de Alta Precisão</h3>
                    
-                   {/* 1. Atividade Principal e Área Total (Área Total foi movida para cá) */}
+                   {/* 1. Atividade Principal e Área Total */}
                    <div>
                       <label className="block text-xs font-bold text-gray-600 mb-1">Atividade Principal</label>
                       <select name="ruralActivity" value={form.ruralActivity} onChange={handleChange} className="w-full border p-2 rounded bg-white">
@@ -638,6 +647,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                       <input name="url" value={form.url || ''} onChange={handleChange} className="w-full border p-2 rounded bg-white text-gray-500 text-xs" />
                    </div>
                 </div>
+                </>
               )}
 
               <button type="submit" className="w-full bg-agro-700 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-agro-800">
