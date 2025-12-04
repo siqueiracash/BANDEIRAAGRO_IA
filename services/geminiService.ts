@@ -63,43 +63,46 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
     throw new Error("Chave de API não configurada.");
   }
 
-  const modelId = "gemini-2.5-flash"; // Powerful enough for search + parsing
+  const modelId = "gemini-2.5-flash";
 
   // Construct a specific search query incl. new fields
   const searchQuery = `venda ${data.urbanSubType} ${data.neighborhood ? `bairro ${data.neighborhood}` : ''} ${data.city} ${data.state} ${data.bedrooms ? data.bedrooms + ' quartos' : ''} ${data.bathrooms ? data.bathrooms + ' banheiros' : ''} ${data.parking ? data.parking + ' vagas' : ''} ${data.areaTotal}m2 preço valor`;
 
+  // Updated Prompt: Explicitly asks for JSON string in natural language, no schema enforcement via API config to avoid conflict with tools.
   const prompt = `
     Atue como um Engenheiro de Avaliações.
-    Pesquise na web por 5 a 8 ofertas REAIS e ATUAIS de imóveis semelhantes ao descrito abaixo para compor uma amostra de mercado (Método Comparativo Direto).
+    Utilize a ferramenta de BUSCA DO GOOGLE (Google Search) para encontrar e estruturar 5 a 8 ofertas REAIS e ATUAIS de imóveis semelhantes ao descrito.
+    
+    QUERY DE BUSCA SUGERIDA: "${searchQuery}"
     
     IMÓVEL AVALIANDO:
     - Tipo: ${data.urbanSubType}
-    - Local: ${data.neighborhood}, ${data.city} - ${data.state}
+    - Local: ${data.neighborhood || 'Centro'}, ${data.city} - ${data.state}
     - Área: ${data.areaTotal} m²
-    - Quartos: ${data.bedrooms || 0}
-    - Banheiros: ${data.bathrooms || 0}
-    - Vagas: ${data.parking || 0}
+    - Quartos: ${data.bedrooms || 0}, Banheiros: ${data.bathrooms || 0}, Vagas: ${data.parking || 0}
     
-    REGRAS:
-    1. Busque em sites imobiliários brasileiros (Zap, VivaReal, OLX, Imovelweb, portais locais).
-    2. Os imóveis devem ser na mesma cidade, preferencialmente no mesmo bairro ou região equivalente.
-    3. As ofertas devem ter preço de venda (não aluguel).
-    4. Se for "Terreno", ignore quartos/banheiros.
-    5. Extraia os dados e retorne EXCLUSIVAMENTE um array JSON.
+    REGRAS DE EXTRAÇÃO:
+    1. Pesquise em sites reais (Zap, VivaReal, OLX, etc).
+    2. Extraia o Preço, Área Total, Quartos, Banheiros, Vagas, Endereço e Link (URL).
+    3. Se não encontrar o número exato de quartos/vagas, aproxime ou deixe 0.
+    4. O "source" deve ser o nome do portal (ex: VivaReal).
+    5. O "url" deve ser o link direto para o anúncio encontrado.
 
-    SCHEMA JSON:
+    SAÍDA OBRIGATÓRIA:
+    Retorne APENAS um array JSON cru. NÃO use formatação Markdown (sem \`\`\`json). Apenas o texto JSON.
+    
+    Exemplo de formato:
     [
       {
-        "title": "Título do anúncio",
-        "price": 500000.00 (Número puro),
-        "areaTotal": 100 (Número puro em m²),
-        "bedrooms": 2 (Número ou 0),
-        "bathrooms": 2 (Número ou 0),
-        "parking": 1 (Número ou 0),
-        "address": "Endereço ou Bairro aproximado",
-        "source": "Nome do Site (ex: VivaReal)",
-        "url": "Link para o anúncio (se disponível na busca)",
-        "description": "Breve descrição"
+        "title": "Apartamento a venda...",
+        "price": 500000,
+        "areaTotal": 80,
+        "bedrooms": 2,
+        "bathrooms": 2,
+        "parking": 1,
+        "address": "Rua X, Bairro Y",
+        "source": "Portal Z",
+        "url": "https://..."
       }
     ]
   `;
@@ -109,59 +112,64 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
       model: modelId,
       contents: prompt,
       config: {
-        tools: [{ googleSearch: {} }],
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING },
-              price: { type: Type.NUMBER },
-              areaTotal: { type: Type.NUMBER },
-              bedrooms: { type: Type.NUMBER },
-              bathrooms: { type: Type.NUMBER },
-              parking: { type: Type.NUMBER },
-              address: { type: Type.STRING },
-              source: { type: Type.STRING },
-              url: { type: Type.STRING },
-              description: { type: Type.STRING }
-            },
-            required: ["title", "price", "areaTotal", "address", "source"]
-          }
-        } as Schema
+        tools: [{ googleSearch: {} }]
+        // REMOVIDO: responseMimeType e responseSchema não podem ser usados junto com googleSearch
       }
     });
 
-    const rawSamples = JSON.parse(response.text || "[]");
+    let text = response.text || "[]";
+    
+    // Limpeza de segurança caso o modelo insira blocos de código Markdown
+    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+
+    // Tentativa de Parse
+    let rawSamples = [];
+    try {
+        rawSamples = JSON.parse(text);
+    } catch (e) {
+        console.warn("Falha ao fazer parse do JSON retornado pela IA. Tentando extrair array com regex.", text);
+        // Fallback: tenta encontrar o array JSON dentro do texto
+        const jsonMatch = text.match(/\[.*\]/s);
+        if (jsonMatch) {
+            try {
+                rawSamples = JSON.parse(jsonMatch[0]);
+            } catch (e2) {
+                console.error("Falha fatal no parse do JSON da IA.");
+            }
+        }
+    }
+
+    if (!Array.isArray(rawSamples)) {
+        return [];
+    }
 
     // Map to MarketSample interface
     const samples: MarketSample[] = rawSamples.map((s: any, index: number) => ({
       id: `ai-sample-${Date.now()}-${index}`,
       type: PropertyType.URBAN,
-      title: s.title,
-      address: s.address,
+      title: s.title || `${data.urbanSubType} em ${data.city}`,
+      address: s.address || data.city,
       city: data.city,
       state: data.state,
-      neighborhood: data.neighborhood, // Assume similar neighborhood if not explicitly parsed
-      price: s.price,
-      areaTotal: s.areaTotal,
-      areaBuilt: s.areaTotal, // Usually areaTotal = areaBuilt for apartments/houses in simple ads
-      pricePerUnit: s.price / s.areaTotal,
+      neighborhood: data.neighborhood,
+      price: typeof s.price === 'string' ? parseFloat(s.price.replace(/[^0-9.]/g, '')) : s.price,
+      areaTotal: typeof s.areaTotal === 'string' ? parseFloat(s.areaTotal.replace(/[^0-9.]/g, '')) : s.areaTotal,
+      areaBuilt: s.areaTotal, 
+      pricePerUnit: (typeof s.price === 'number' && typeof s.areaTotal === 'number') ? s.price / s.areaTotal : 0,
       date: new Date().toISOString(),
       source: s.source + (s.url ? ` (${s.url})` : ''),
       urbanSubType: data.urbanSubType,
       bedrooms: s.bedrooms || 0,
       bathrooms: s.bathrooms || 0,
       parking: s.parking || 0,
-      conservationState: 'Bom' // Default conservative assumption
+      conservationState: 'Bom' 
     }));
 
-    // Filter out invalid samples (e.g. zero price or area)
+    // Filter out invalid samples
     return samples.filter(s => s.price > 0 && s.areaTotal > 0);
 
   } catch (error) {
     console.error("Erro ao buscar amostras urbanas via IA:", error);
-    return []; // Handle gracefully in the controller
+    return []; 
   }
 };

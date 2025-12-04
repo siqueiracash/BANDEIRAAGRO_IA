@@ -39,7 +39,8 @@ const App: React.FC = () => {
       setCurrentStep(AppStep.RESULT);
     } catch (error) {
       console.error(error);
-      alert("Erro ao processar a avaliação. Tente novamente.");
+      const msg = error instanceof Error ? error.message : "Erro desconhecido";
+      alert(`Erro ao processar a avaliação: ${msg}\n\nTente novamente ou verifique os dados de entrada.`);
       setCurrentStep(AppStep.FORM);
     }
   };
