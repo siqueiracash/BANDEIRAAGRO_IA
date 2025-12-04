@@ -12,6 +12,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'LIST' | 'ADD'>('LIST');
   
+  // --- ESTADOS DO FILTRO ---
+  const [showFilters, setShowFilters] = useState(true);
+  const [filters, setFilters] = useState({
+    city: '',
+    state: '',
+    type: '',
+    minPrice: '',
+    maxPrice: '',
+    minArea: '',
+    maxArea: '',
+  });
+
+  // --- ESTADOS DO FORMULÁRIO ---
   const [editingId, setEditingId] = useState<string | null>(null);
   const [priceDisplay, setPriceDisplay] = useState('');
 
@@ -31,6 +44,47 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     setSamples(data);
     setLoading(false);
   };
+
+  // --- LÓGICA DE FILTRAGEM ---
+  const filteredSamples = samples.filter(sample => {
+    // 1. Tipo
+    if (filters.type && sample.type !== filters.type) return false;
+    
+    // 2. Estado
+    if (filters.state && sample.state !== filters.state) return false;
+    
+    // 3. Cidade (Busca parcial, case insensitive)
+    if (filters.city && !sample.city.toLowerCase().includes(filters.city.toLowerCase().trim())) return false;
+    
+    // 4. Preço
+    if (filters.minPrice && sample.price < Number(filters.minPrice)) return false;
+    if (filters.maxPrice && sample.price > Number(filters.maxPrice)) return false;
+    
+    // 5. Área
+    if (filters.minArea && sample.areaTotal < Number(filters.minArea)) return false;
+    if (filters.maxArea && sample.areaTotal > Number(filters.maxArea)) return false;
+
+    return true;
+  });
+
+  const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFilters(prev => ({ ...prev, [name]: value }));
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      city: '',
+      state: '',
+      type: '',
+      minPrice: '',
+      maxPrice: '',
+      minArea: '',
+      maxArea: '',
+    });
+  };
+
+  // --- LÓGICA DO FORMULÁRIO ---
 
   const formatCurrency = (value: number | undefined) => {
     if (value === undefined || value === null) return '';
@@ -134,48 +188,148 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       </div>
 
       <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
-        <div className="flex gap-4 mb-8 border-b border-gray-200">
-          <button onClick={() => setActiveTab('LIST')} className={`pb-4 px-4 font-bold text-sm uppercase ${activeTab === 'LIST' ? 'text-agro-700 border-b-2 border-agro-500' : 'text-gray-400'}`}>Lista</button>
-          <button onClick={() => setActiveTab('ADD')} className={`pb-4 px-4 font-bold text-sm uppercase ${activeTab === 'ADD' ? 'text-agro-700 border-b-2 border-agro-500' : 'text-gray-400'}`}>{editingId ? 'Editar' : 'Nova Amostra'}</button>
+        <div className="flex gap-4 mb-6 border-b border-gray-200">
+          <button onClick={() => setActiveTab('LIST')} className={`pb-4 px-4 font-bold text-sm uppercase ${activeTab === 'LIST' ? 'text-agro-700 border-b-2 border-agro-500' : 'text-gray-400'}`}>Lista de Amostras</button>
+          <button onClick={() => setActiveTab('ADD')} className={`pb-4 px-4 font-bold text-sm uppercase ${activeTab === 'ADD' ? 'text-agro-700 border-b-2 border-agro-500' : 'text-gray-400'}`}>{editingId ? 'Editar Amostra' : 'Nova Amostra'}</button>
         </div>
 
         {loading && <div className="text-center py-10 text-gray-500">Carregando...</div>}
 
         {!loading && activeTab === 'LIST' ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead>
-                <tr className="bg-gray-100 text-gray-700 uppercase text-xs">
-                  <th className="p-3">Local</th>
-                  <th className="p-3">Tipo</th>
-                  <th className="p-3">Detalhes</th>
-                  <th className="p-3">Valor</th>
-                  <th className="p-3 text-center">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {samples.map(s => (
-                  <tr key={s.id} className="hover:bg-gray-50">
-                    <td className="p-3">
-                      <div className="font-bold">{s.city}/{s.state}</div>
-                      <div className="text-xs text-gray-500">{s.neighborhood || s.address}</div>
-                    </td>
-                    <td className="p-3">
-                      <span className={`px-2 py-1 rounded text-xs font-bold border ${s.type === PropertyType.URBAN ? 'bg-blue-50 text-blue-700' : 'bg-green-50 text-green-700'}`}>{s.type}</span>
-                    </td>
-                    <td className="p-3 text-xs text-gray-600">
-                      {s.type === PropertyType.URBAN ? s.urbanSubType : s.ruralActivity} • {s.areaTotal} {s.type === PropertyType.URBAN ? 'm²' : 'ha'}
-                      {s.landCapability && <div className="text-gray-400 mt-1">Cap: {s.landCapability}</div>}
-                    </td>
-                    <td className="p-3 font-medium text-agro-900">{s.price.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}</td>
-                    <td className="p-3 flex justify-center gap-2">
-                      <button onClick={() => handleEdit(s)} className="text-blue-600 font-bold">Editar</button>
-                      <button onClick={() => remove(s.id)} className="text-red-500 font-bold">X</button>
-                    </td>
+          <div>
+            {/* --- PAINEL DE FILTROS --- */}
+            <div className="mb-6 border border-gray-200 rounded-lg overflow-hidden">
+              <div 
+                className="bg-gray-50 px-4 py-3 flex justify-between items-center cursor-pointer hover:bg-gray-100 transition-colors"
+                onClick={() => setShowFilters(!showFilters)}
+              >
+                <h3 className="font-bold text-gray-700 flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17.414V11.414L4.293 6.707A1 1 0 014 6v-3z" clipRule="evenodd" />
+                  </svg>
+                  Pesquisar e Filtrar Amostras
+                </h3>
+                <span className="text-gray-500 text-sm">{showFilters ? 'Ocultar' : 'Mostrar'}</span>
+              </div>
+              
+              {showFilters && (
+                <div className="p-4 bg-white grid grid-cols-1 md:grid-cols-4 gap-4">
+                  {/* Linha 1: Local e Tipo */}
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 mb-1">Cidade</label>
+                    <input 
+                      type="text" 
+                      name="city" 
+                      value={filters.city} 
+                      onChange={handleFilterChange} 
+                      placeholder="Busca por nome..." 
+                      className="w-full border p-2 rounded text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 mb-1">Estado</label>
+                    <select name="state" value={filters.state} onChange={handleFilterChange} className="w-full border p-2 rounded text-sm">
+                      <option value="">Todos</option>
+                      {BRAZIL_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 mb-1">Categoria</label>
+                    <select name="type" value={filters.type} onChange={handleFilterChange} className="w-full border p-2 rounded text-sm">
+                      <option value="">Todas</option>
+                      <option value={PropertyType.RURAL}>Rural</option>
+                      <option value={PropertyType.URBAN}>Urbano</option>
+                    </select>
+                  </div>
+                  <div className="flex items-end">
+                     <button onClick={clearFilters} className="w-full text-sm text-gray-600 border border-gray-300 hover:bg-gray-50 py-2 rounded">
+                       Limpar Filtros
+                     </button>
+                  </div>
+
+                  {/* Linha 2: Valores e Áreas */}
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 mb-1">Preço Mín (R$)</label>
+                    <input type="number" name="minPrice" value={filters.minPrice} onChange={handleFilterChange} className="w-full border p-2 rounded text-sm" placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 mb-1">Preço Máx (R$)</label>
+                    <input type="number" name="maxPrice" value={filters.maxPrice} onChange={handleFilterChange} className="w-full border p-2 rounded text-sm" placeholder="Sem limite" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 mb-1">Área Mín</label>
+                    <input type="number" name="minArea" value={filters.minArea} onChange={handleFilterChange} className="w-full border p-2 rounded text-sm" placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 mb-1">Área Máx</label>
+                    <input type="number" name="maxArea" value={filters.maxArea} onChange={handleFilterChange} className="w-full border p-2 rounded text-sm" placeholder="Sem limite" />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-between items-center mb-2 px-2">
+              <span className="text-sm font-bold text-gray-600">
+                {filteredSamples.length} amostras encontradas
+              </span>
+            </div>
+
+            <div className="overflow-x-auto border rounded-lg">
+              <table className="w-full text-sm text-left">
+                <thead>
+                  <tr className="bg-gray-100 text-gray-700 uppercase text-xs">
+                    <th className="p-3">Local</th>
+                    <th className="p-3">Tipo</th>
+                    <th className="p-3">Detalhes</th>
+                    <th className="p-3">Valor Total</th>
+                    <th className="p-3">Valor Unit.</th>
+                    <th className="p-3 text-center">Ações</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredSamples.map(s => {
+                    const unitPrice = s.price / s.areaTotal;
+                    return (
+                      <tr key={s.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="p-3">
+                          <div className="font-bold">{s.city}/{s.state}</div>
+                          <div className="text-xs text-gray-500 truncate max-w-[150px]">{s.neighborhood || s.address}</div>
+                        </td>
+                        <td className="p-3">
+                          <span className={`px-2 py-1 rounded text-xs font-bold border ${s.type === PropertyType.URBAN ? 'bg-blue-50 text-blue-700' : 'bg-green-50 text-green-700'}`}>{s.type}</span>
+                        </td>
+                        <td className="p-3 text-xs text-gray-600">
+                          <div className="font-semibold">{s.type === PropertyType.URBAN ? s.urbanSubType : s.ruralActivity}</div>
+                          <div>{s.areaTotal.toLocaleString('pt-BR')} {s.type === PropertyType.URBAN ? 'm²' : 'ha'}</div>
+                          {s.landCapability && <div className="text-gray-400 mt-1 truncate max-w-[150px]" title={s.landCapability}>Cap: {s.landCapability}</div>}
+                        </td>
+                        <td className="p-3 font-medium text-agro-900">{s.price.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}</td>
+                        <td className="p-3 text-xs text-gray-500">{unitPrice.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}/{s.type === PropertyType.URBAN ? 'm²' : 'ha'}</td>
+                        <td className="p-3 flex justify-center gap-2">
+                          <button onClick={() => handleEdit(s)} className="text-blue-600 hover:text-blue-800 font-bold p-1" title="Editar">
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                               <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                             </svg>
+                          </button>
+                          <button onClick={() => remove(s.id)} className="text-red-500 hover:text-red-700 font-bold p-1" title="Excluir">
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                               <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                             </svg>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filteredSamples.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-gray-500 bg-gray-50 italic">
+                        Nenhuma amostra encontrada com os filtros selecionados.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : !loading && activeTab === 'ADD' ? (
           <form onSubmit={handleSave} className="space-y-6">
@@ -213,6 +367,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             {isRural && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded bg-green-50 mt-4 animate-fade-in">
                  <h3 className="md:col-span-2 font-bold text-green-800 text-lg border-b border-green-200 pb-2">Detalhes Rurais de Alta Precisão</h3>
+                 
+                 {/* ATIVIDADE PRINCIPAL - CORREÇÃO: Adicionada pois estava faltando no form manual */}
+                 <div>
+                    <label className="block text-xs font-bold text-gray-600 mb-1">Atividade Principal</label>
+                    <select name="ruralActivity" value={form.ruralActivity} onChange={handleChange} className="w-full border p-2 rounded bg-white">
+                      <option value="Lavoura">Lavoura</option>
+                      <option value="Pecuária">Pecuária</option>
+                      <option value="Pasto">Pasto</option>
+                      <option value="Floresta">Floresta</option>
+                      <option value="Cerrado Nativo">Cerrado Nativo</option>
+                      <option value="Mata Nativa">Mata Nativa</option>
+                    </select>
+                 </div>
+
                  <div>
                     <label className="block text-xs font-bold text-gray-600 mb-1">Capacidade de Uso</label>
                     <select name="landCapability" value={form.landCapability} onChange={handleChange} className="w-full border p-2 rounded bg-white">
