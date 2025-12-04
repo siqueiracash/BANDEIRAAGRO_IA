@@ -136,7 +136,7 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
     QUERY DE BUSCA EXECUTADA: "${searchQuery}"
     
     OBJETIVO:
-    Encontrar de 8 a 12 amostras de ofertas ATUAIS nos portais listados (Imovelweb, Zap, VivaReal, etc).
+    Encontrar de 12 a 15 amostras de ofertas ATUAIS nos portais listados (Imovelweb, Zap, VivaReal, etc).
     
     DADOS DO IMÓVEL AVALIANDO:
     - Tipo: ${data.urbanSubType}

@@ -1,4 +1,5 @@
 
+
 import { PropertyData, ValuationResult, PropertyType, MarketSample } from "../types";
 import { filterSamples, getSamplesByCities } from "./storageService";
 import { getNeighboringCities, findUrbanSamples } from "./geminiService";
@@ -359,6 +360,18 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
   else if (coeffVariation <= 0.15) precisionGrade = "Grau II (Média Precisão)";
   else if (coeffVariation <= 0.25) precisionGrade = "Grau I (Baixa Precisão)"; 
   
+  // --- VALIDAÇÃO RÍGIDA DE GRAU DE PRECISÃO (APENAS URBANO) ---
+  if (!isRural) {
+    // NBR 14653-2: Grau II exige mínimo de 5 amostras
+    if (count < 5) {
+       throw new Error("URBAN_SAMPLE_COUNT_LOW");
+    }
+    // NBR 14653-2: Grau II exige CV <= 0.15
+    if (coeffVariation > 0.15) {
+       throw new Error("URBAN_PRECISION_LOW");
+    }
+  }
+
   const tStudent = getTStudent70(count); 
   const confidenceInterval = count > 0 ? tStudent * (stdDev / Math.sqrt(count)) : 0;
   const minInterval = avgHomogenizedUnitPrice - confidenceInterval;

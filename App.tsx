@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import Layout from './components/Layout';
 import StepSelection from './components/StepSelection';
@@ -71,6 +72,22 @@ const App: React.FC = () => {
           "2. Em 'Restrições de sites', adicione:\n" +
           "   https://bandeiraagro-ia.vercel.app/*\n" +
           "3. Salve e aguarde 2 minutos."
+        );
+      } else if (msg.includes("URBAN_PRECISION_LOW")) {
+        alert(
+          "AVALIAÇÃO INTERROMPIDA: BAIXA PRECISÃO (GRAU I)\n\n" +
+          "O sistema bloqueou a geração do laudo pois as amostras encontradas apresentam dispersão muito alta, resultando em Grau I (Baixa Precisão).\n\n" +
+          "O MÍNIMO EXIGIDO É O GRAU II (Média Precisão).\n\n" +
+          "SOLUÇÃO:\n" +
+          "1. Especifique melhor o BAIRRO (Use bairros vizinhos se necessário).\n" +
+          "2. Tente buscar um tipo de imóvel mais padronizado."
+        );
+      } else if (msg.includes("URBAN_SAMPLE_COUNT_LOW")) {
+        alert(
+          "AVALIAÇÃO INTERROMPIDA: AMOSTRAS INSUFICIENTES\n\n" +
+          "A pesquisa automática não encontrou o mínimo de 5 amostras válidas exigidas pela NBR 14653 para atingir o Grau II.\n\n" +
+          "SOLUÇÃO:\n" +
+          "Tente expandir a região ou utilizar nomes de bairros mais populares."
         );
       } else {
         alert(`Erro ao processar a avaliação: ${msg}\n\nTente novamente.`);
