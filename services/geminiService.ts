@@ -125,10 +125,11 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
   // Usar aspas no Bairro ajuda o Google a ser exato
   const searchQuery = `comprar ${data.urbanSubType} "${streetName}" "${data.neighborhood}" ${data.city} ${data.state} ${data.bedrooms ? data.bedrooms + ' quartos' : ''} ${data.areaTotal}m2`;
 
-  // Updated Prompt: Explicitly asks for JSON string in natural language
+  // Updated Prompt: Increase requested samples to 10-15 to allow outlier filtering
   const prompt = `
     Atue como um Engenheiro de Avaliações rigoroso.
-    Utilize a ferramenta de BUSCA DO GOOGLE (Google Search) para encontrar e estruturar 5 a 8 ofertas REAIS e ATUAIS.
+    Utilize a ferramenta de BUSCA DO GOOGLE (Google Search) para encontrar e estruturar 10 a 15 ofertas REAIS e ATUAIS.
+    Preciso de um volume maior de amostras para poder descartar as que tiverem preço muito discrepante (outliers).
     
     QUERY DE BUSCA: "${searchQuery}"
     

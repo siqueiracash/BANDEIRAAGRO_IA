@@ -271,14 +271,19 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
     };
   });
 
-  // 2. Seleção Estatística (Combinatória para menor Coef. Variação)
+  // 2. Seleção Estatística (Combinatória para melhor conjunto)
+  // CRITÉRIO DE MELHORIA: Priorizar combinações com ZERO outliers (>30%)
+  
   let validSamples = [...homogenizedPool];
   
   if (homogenizedPool.length >= TARGET_SAMPLE_COUNT) {
+      // Limita combinatória se houver muitas amostras para não travar (ex: 20 amostras)
+      // Se tivermos 12 amostras, C(12,5) = 792 (ok).
+      
       const combinations = getCombinations(homogenizedPool, TARGET_SAMPLE_COUNT);
       
       let bestCombination: any[] = [];
-      let minCV = Infinity;
+      let bestStats = { cv: Infinity, outliers: Infinity };
 
       for (const combo of combinations) {
           const sum = combo.reduce((acc, s) => acc + s.homogenizedUnitPrice, 0);
@@ -288,9 +293,25 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
           const stdDev = Math.sqrt(variance);
           const cv = avg > 0 ? stdDev / avg : Infinity;
 
-          if (cv < minCV) {
-              minCV = cv;
+          // Contagem de Outliers (Desvio > 30% em relação à média deste grupo)
+          let outlierCount = 0;
+          for (const s of combo) {
+             const deviation = Math.abs(s.homogenizedUnitPrice - avg) / avg;
+             if (deviation > 0.30) outlierCount++;
+          }
+
+          // LÓGICA DE SELEÇÃO:
+          // 1. Prioridade absoluta: Menor número de outliers.
+          // 2. Desempate: Menor CV.
+          
+          if (outlierCount < bestStats.outliers) {
+              bestStats = { cv: cv, outliers: outlierCount };
               bestCombination = combo;
+          } else if (outlierCount === bestStats.outliers) {
+              if (cv < bestStats.cv) {
+                  bestStats = { cv: cv, outliers: outlierCount };
+                  bestCombination = combo;
+              }
           }
       }
 
@@ -801,6 +822,7 @@ export const generateUrbanAutomatedValuation = async (data: PropertyData): Promi
     .sort((a, b) => b.score - a.score);
 
     // Pegamos todos os que vieram (normalmente 5 a 8) e deixamos a combinatória do cálculo resolver o melhor conjunto de 5
+    // Com a nova alteração, esperamos receber até 15 amostras, o que permite descartar outliers.
     const poolSamples = rankedCandidates.map(item => item.sample);
 
     // 3. Cálculo
