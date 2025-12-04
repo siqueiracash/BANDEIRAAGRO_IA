@@ -131,29 +131,29 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
 
   const prompt = `
     Atue como um Engenheiro de Avaliações Sênior especialista em NBR 14653.
-    O usuário precisa encontrar amostras comparáveis para um imóvel urbano com ALTA PRECISÃO (Grau II ou III).
+    O usuário precisa encontrar amostras comparáveis para um imóvel urbano com ALTA PRECISÃO (Mínimo Grau II).
     
     QUERY DE BUSCA EXECUTADA: "${searchQuery}"
     
     OBJETIVO:
-    Encontrar de 18 a 24 amostras de ofertas ATUAIS nos portais listados.
+    Encontrar de 20 a 30 amostras de ofertas ATUAIS nos portais listados.
     QUANTO MAIS AMOSTRAS, MELHOR A PRECISÃO DO LAUDO.
     
-    CRITÉRIO DE HOMOGENEIDADE (CRUCIAL):
-    - Busque imóveis com padrão construtivo e localização MUITO SEMELHANTES.
-    - Evite amostras com preços muito discrepantes (outliers) que prejudiquem o Coeficiente de Variação.
+    ESTRATÉGIA DE BUSCA E EXPANSÃO (IMPORTANTE):
+    1. ALVO PRINCIPAL: Busque imóveis na Rua "${streetName}" e no Bairro "${data.neighborhood}".
+    2. EXPANSÃO AUTOMÁTICA OBRIGATÓRIA: Se não encontrar pelo menos 15 amostras neste bairro exato, VOCÊ DEVE BUSCAR EM BAIRROS VIZINHOS OU SEMELHANTES na cidade de ${data.city}.
+    3. CRITÉRIO DE SEMELHANÇA: Ao expandir, mantenha o mesmo padrão construtivo e perfil socioeconômico para garantir homogeneidade (Preço por m² próximo).
     
     DADOS DO IMÓVEL AVALIANDO:
     - Tipo: ${data.urbanSubType}
-    - Bairro Alvo: ${data.neighborhood} (Prioridade TOTAL)
-    - Rua Alvo: ${streetName} (Desejável)
+    - Bairro Alvo: ${data.neighborhood}
+    - Rua Alvo: ${streetName}
     - Cidade: ${data.city}
     
     INSTRUÇÕES RÍGIDAS:
-    1. PRIORIDADE: Tente encontrar imóveis na Rua "${streetName}".
-    2. FALLBACK: Se houver poucas ou nenhuma opção na rua exata, LISTE IMÓVEIS NO BAIRRO "${data.neighborhood}".
-    3. NÃO INVENTE DADOS. Extraia o preço e área do snippet da busca.
-    4. Ignore leilões ou preços simbólicos (ex: R$ 1,00).
+    - Ignore leilões ou preços simbólicos.
+    - Extraia o preço e área do snippet da busca.
+    - Se o anúncio for de um bairro vizinho, indique isso no campo 'neighborhood'.
     
     SAÍDA JSON OBRIGATÓRIA:
     Retorne APENAS um array JSON. Sem markdown.
@@ -188,7 +188,7 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
       }
     });
 
-    // --- CORREÇÃO DE LINKS VIA GROUNDING METADATA (TOLERÂNCIA ZERO PARA ERROS 404) ---
+    // --- CORREÇÃO DE LINKS VIA GROUNDING METADATA ---
     const realLinks: string[] = [];
     if (response.candidates && response.candidates[0]?.groundingMetadata?.groundingChunks) {
       response.candidates[0].groundingMetadata.groundingChunks.forEach((chunk: any) => {
@@ -237,7 +237,7 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
           }
       }
 
-      // 3. FALLBACK DE SEGURANÇA (IMPORTANTE):
+      // 3. FALLBACK DE SEGURANÇA:
       if (!finalUrl || isGarbage) {
           const query = encodeURIComponent(`site:imovelweb.com.br OR site:zapimoveis.com.br OR site:vivareal.com.br ${s.urbanSubType} ${s.neighborhood} ${data.city} ${s.price}`);
           finalUrl = `https://www.google.com/search?q=${query}`;

@@ -363,8 +363,8 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
     if (count < 5) {
        throw new Error("URBAN_SAMPLE_COUNT_LOW");
     }
-    // NBR 14653-2: Grau II exige CV <= 0.15
-    // SE FOR MAIOR QUE 0.15 (15%), REJEITA IMEDIATAMENTE.
+    // NBR 14653-2: Grau II exige CV <= 0.15 (15%)
+    // SE FOR MAIOR QUE 0.15, REJEITA IMEDIATAMENTE. NÃO GERA GRAU I.
     if (coeffVariation > 0.15) {
        throw new Error("URBAN_PRECISION_LOW");
     }
@@ -374,8 +374,8 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
   if (coeffVariation <= 0.10) precisionGrade = "Grau III (Alta Precisão)";
   else if (coeffVariation <= 0.15) precisionGrade = "Grau II (Média Precisão)";
   else {
-      // Caso Rural ou falha de lógica, define como Grau I ou Fora de Grau
-      // Para Urbano, esse bloco nunca será exibido pois o erro acima bloqueia.
+      // Se for Urbano, o erro acima já abortou.
+      // Se for Rural (onde a tolerância pode ser diferente), mantém-se como Grau I.
       precisionGrade = "Grau I (Baixa Precisão)";
   }
   
@@ -735,7 +735,7 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
               <table class="w-full border border-gray-300">
                   <tr class="bg-gray-100"><td class="p-2 font-bold">Média</td><td class="p-2 text-right">${fmtBRL(avgHomogenizedUnitPrice)}</td></tr>
                   <tr><td class="p-2 font-bold">Desvio Padrão</td><td class="p-2 text-right">${fmtBRL(stdDev)}</td></tr>
-                  <tr class="bg-gray-100"><td class="p-2 font-bold">Coef. Variação</td><td class="p-2 text-right ${coeffVariation > 0.25 ? 'text-red-600 font-bold' : ''}">${fmtDec(coeffVariation * 100)}%</td></tr>
+                  <tr class="bg-gray-100"><td class="p-2 font-bold">Coef. Variação</td><td class="p-2 text-right ${coeffVariation > 0.15 ? 'text-red-600 font-bold' : ''}">${fmtDec(coeffVariation * 100)}%</td></tr>
                   <tr><td class="p-2 font-bold">Grau de Precisão</td><td class="p-2 text-right">${precisionGrade}</td></tr>
               </table>
           </div>
