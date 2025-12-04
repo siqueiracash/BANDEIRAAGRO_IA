@@ -68,7 +68,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     
     // 5. Área
     if (filters.minArea && sample.areaTotal < Number(filters.minArea)) return false;
-    if (filters.maxArea && sample.areaTotal > Number(filters.maxArea)) return false;
+    if (filters.maxArea && sample.areaTotal < Number(filters.maxArea)) return false;
 
     return true;
   });
@@ -425,7 +425,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                  </select>
               </div>
 
-              {/* CAMPOS COMUNS (CIDADE, PREÇO, ÁREA) */}
+              {/* CAMPOS COMUNS (CIDADE, PREÇO) - ÁREA TOTAL REMOVIDA DAQUI */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
                  <div>
                     <label className="block text-sm font-bold mb-1">Cidade *</label>
@@ -437,59 +437,74 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                        <option value="">UF</option>{BRAZIL_STATES.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                  </div>
-                 <div>
-                    <label className="block text-sm font-bold mb-1">Área Total {isRural ? '(ha)' : '(m²)'} *</label>
-                    <input type="number" name="areaTotal" value={form.areaTotal || ''} onChange={handleChange} className="w-full border p-2 rounded" required />
-                 </div>
-                 <div>
+                 <div className="md:col-span-2">
                     <label className="block text-sm font-bold mb-1">Valor Total (R$) *</label>
                     <input type="text" value={priceDisplay} onChange={handlePriceChange} className="w-full border p-2 rounded font-bold" required />
                  </div>
               </div>
 
-              {/* FORMULÁRIO URBANO ESPECÍFICO */}
+              {/* FORMULÁRIO URBANO ESPECÍFICO - LAYOUT IDÊNTICO AO STEPFORM */}
               {!isRural && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
+                <div className="space-y-4 pt-2">
+                   {/* BAIRRO (EM CIMA, COMO NO STEPFORM) */}
                    <div className="md:col-span-2">
-                      <label className="block text-sm font-bold mb-1">Tipo de Imóvel</label>
-                      <select name="urbanSubType" value={form.urbanSubType} onChange={handleChange} className="w-full border p-2 rounded bg-white">
-                        <option value="Apartamento">Apartamento</option>
-                        <option value="Casa">Casa</option>
-                        <option value="Sobrado">Sobrado</option>
-                        <option value="Terreno">Terreno</option>
-                        <option value="Prédio Comercial">Prédio Comercial</option>
-                      </select>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">Bairro *</label>
+                      <input name="neighborhood" value={form.neighborhood || ''} onChange={handleChange} className="w-full border p-2 rounded" placeholder="Ex: Centro, Vila Madalena" />
                    </div>
-                   <div>
-                      <label className="block text-sm font-bold mb-1">Bairro</label>
-                      <input name="neighborhood" value={form.neighborhood || ''} onChange={handleChange} className="w-full border p-2 rounded" />
-                   </div>
-                   <div>
-                      <label className="block text-sm font-bold mb-1">Endereço</label>
-                      <input name="address" value={form.address || ''} onChange={handleChange} className="w-full border p-2 rounded" />
-                   </div>
-                   <div className="grid grid-cols-3 gap-2 md:col-span-2">
-                      <div>
-                        <label className="block text-xs font-bold mb-1">Quartos</label>
-                        <input type="number" name="bedrooms" value={form.bedrooms || ''} onChange={handleChange} className="w-full border p-2 rounded" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold mb-1">Banheiros</label>
-                        <input type="number" name="bathrooms" value={form.bathrooms || ''} onChange={handleChange} className="w-full border p-2 rounded" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold mb-1">Vagas</label>
-                        <input type="number" name="parking" value={form.parking || ''} onChange={handleChange} className="w-full border p-2 rounded" />
-                      </div>
-                   </div>
+                   
+                   {/* ENDEREÇO (LOGO ABAIXO) */}
                    <div className="md:col-span-2">
-                      <label className="block text-sm font-bold mb-1">Título do Anúncio</label>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">Endereço / Localização</label>
+                      <input name="address" value={form.address || ''} onChange={handleChange} className="w-full border p-2 rounded" placeholder="Ex: Rua das Flores, 123" />
+                   </div>
+
+                   {/* BOX CINZA COM DETALHES DO IMÓVEL */}
+                   <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 mt-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                         {/* TIPO */}
+                         <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">Tipo de Imóvel</label>
+                            <select name="urbanSubType" value={form.urbanSubType} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white">
+                              <option value="Apartamento">Apartamento</option>
+                              <option value="Casa">Casa</option>
+                              <option value="Sobrado">Sobrado</option>
+                              <option value="Terreno">Terreno</option>
+                              <option value="Prédio Comercial">Prédio Comercial</option>
+                            </select>
+                         </div>
+                         
+                         {/* ÁREA TOTAL (MOVIDA PARA CÁ) */}
+                         <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">Área Total (m²) *</label>
+                            <input type="number" name="areaTotal" value={form.areaTotal || ''} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2" required min="0" />
+                         </div>
+                         
+                         {/* GRID DE QUARTOS/BANHEIROS/VAGAS */}
+                         <div className="md:col-span-2 grid grid-cols-3 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Quartos</label>
+                              <input type="number" name="bedrooms" min="0" value={form.bedrooms || ''} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="0" />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Banheiros</label>
+                              <input type="number" name="bathrooms" min="0" value={form.bathrooms || ''} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="0" />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Vagas</label>
+                              <input type="number" name="parking" min="0" value={form.parking || ''} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="0" />
+                            </div>
+                         </div>
+                      </div>
+                   </div>
+
+                   {/* CAMPOS EXTRAS ADMINISTRATIVOS */}
+                   <div className="md:col-span-2">
+                      <label className="block text-sm font-bold mb-1">Título do Anúncio (Opcional)</label>
                       <input name="title" value={form.title || ''} onChange={handleChange} className="w-full border p-2 rounded" />
                    </div>
-                    {/* CAMPO DESCRIÇÃO ADICIONADO */}
                    <div className="md:col-span-2">
                       <label className="block text-sm font-bold mb-1">Descrição / Detalhes</label>
-                      <textarea name="description" rows={3} value={form.description || ''} onChange={(e) => setForm({...form, description: e.target.value})} className="w-full border p-2 rounded" />
+                      <textarea name="description" rows={3} value={form.description || ''} onChange={(e) => setForm({...form, description: e.target.value})} className="w-full border p-2 rounded" placeholder="Observações extras..." />
                    </div>
                    <div className="md:col-span-2">
                       <label className="block text-sm font-bold mb-1">URL Original</label>
@@ -498,13 +513,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 </div>
               )}
 
-              {/* FORMULÁRIO RURAL ATUALIZADO */}
+              {/* FORMULÁRIO RURAL */}
               {isRural && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded bg-green-50 mt-4 animate-fade-in">
                    <h3 className="md:col-span-2 font-bold text-green-800 text-lg border-b border-green-200 pb-2">Detalhes Rurais de Alta Precisão</h3>
                    
-                   {/* 1. Atividade Principal (Largura total) */}
-                   <div className="md:col-span-2">
+                   {/* 1. Atividade Principal e Área Total (Área Total foi movida para cá) */}
+                   <div>
                       <label className="block text-xs font-bold text-gray-600 mb-1">Atividade Principal</label>
                       <select name="ruralActivity" value={form.ruralActivity} onChange={handleChange} className="w-full border p-2 rounded bg-white">
                         <option value="Lavoura">Lavoura</option>
@@ -514,6 +529,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                         <option value="Cerrado Nativo">Cerrado Nativo</option>
                         <option value="Mata Nativa">Mata Nativa</option>
                       </select>
+                   </div>
+                   
+                   <div>
+                      <label className="block text-xs font-bold text-gray-600 mb-1">Área Total (Hectares) *</label>
+                      <input type="number" name="areaTotal" value={form.areaTotal || ''} onChange={handleChange} className="w-full border p-2 rounded bg-white" required min="0" step="0.01" />
                    </div>
 
                    {/* 2. Benfeitorias | Acessibilidade */}
@@ -602,6 +622,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                         <option value="Força + Rede telefônica">Força + Telefone</option>
                         <option value="Nenhum">Nenhum</option>
                       </select>
+                   </div>
+                   
+                   {/* CAMPOS EXTRAS RURAIS (Titulo, Descrição, URL) - Precisam estar dentro do bloco ou abaixo dele */}
+                   <div className="md:col-span-2 border-t pt-4 mt-2">
+                      <label className="block text-sm font-bold mb-1">Título do Anúncio (Opcional)</label>
+                      <input name="title" value={form.title || ''} onChange={handleChange} className="w-full border p-2 rounded bg-white" />
+                   </div>
+                   <div className="md:col-span-2">
+                      <label className="block text-sm font-bold mb-1">Descrição / Detalhes</label>
+                      <textarea name="description" rows={3} value={form.description || ''} onChange={(e) => setForm({...form, description: e.target.value})} className="w-full border p-2 rounded bg-white" placeholder="Observações extras..." />
+                   </div>
+                   <div className="md:col-span-2">
+                      <label className="block text-sm font-bold mb-1">URL Original</label>
+                      <input name="url" value={form.url || ''} onChange={handleChange} className="w-full border p-2 rounded bg-white text-gray-500 text-xs" />
                    </div>
                 </div>
               )}
