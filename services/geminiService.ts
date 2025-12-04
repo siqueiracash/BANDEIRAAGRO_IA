@@ -115,39 +115,34 @@ export const extractSampleFromUrl = async (url: string, type: PropertyType): Pro
   const modelId = "gemini-2.5-flash"; // Modelo rápido e eficiente
 
   const prompt = `
-    Atue como um extrator de dados imobiliários.
-    O usuário forneceu uma URL de um portal imobiliário (Imovelweb, Zap, VivaReal, etc).
+    Atue como um extrator de dados imobiliários especializado.
     
     URL ALVO: "${url}"
     
     TAREFA:
-    Use a ferramenta de busca para encontrar as informações contidas nesta página específica (Preço, Área, Endereço, Quartos).
-    Normalmente o Google indexa o Título e a Descrição que contém "Venda de Apartamento... R$ 500.000... 80m²".
+    Use a ferramenta de busca para ler o conteúdo desta página (Imovelweb, Zap, VivaReal, OLX, etc) e extrair TODOS os dados técnicos possíveis.
     
-    EXTRAIA OS DADOS PARA JSON:
-    - Preço Total (price)
-    - Área Total (areaTotal)
-    - Cidade (city)
-    - Estado (state) - Sigla UF
-    - Bairro (neighborhood)
-    - Título do anúncio (title)
-    - Quartos (bedrooms)
-    - Banheiros (bathrooms)
-    - Vagas (parking)
-    
-    Se não encontrar algum dado exato, tente inferir pelo contexto ou deixe 0/null.
+    MAPEAMENTO OBRIGATÓRIO (JSON):
+    1. urbanSubType: Identifique o tipo e mapeie EXATAMENTE para um destes valores: ['Apartamento', 'Casa', 'Sobrado', 'Terreno', 'Prédio Comercial']. Se for lote, mapeie para 'Terreno'.
+    2. address: Tente encontrar o nome da Rua/Logradouro. Se não tiver, deixe em branco.
+    3. description: Um resumo curto das características (ex: "Sol da manhã, reformado, varanda gourmet").
+    4. areaTotal e areaBuilt: Se for Apartamento, geralmente são iguais. Se for Casa, tente distinguir Terreno vs Construída.
     
     SAÍDA JSON APENAS:
     {
-      "title": "...",
-      "price": 0.00,
-      "areaTotal": 0.00,
-      "city": "...",
-      "state": "...",
-      "neighborhood": "...",
+      "title": "Título completo do anúncio",
+      "description": "Texto descritivo resumido",
+      "price": 0.00, // Numérico
+      "areaTotal": 0.00, // Numérico
+      "areaBuilt": 0.00, // Numérico
+      "city": "Nome da Cidade",
+      "state": "Sigla UF",
+      "neighborhood": "Nome do Bairro",
+      "address": "Rua Exemplo, 123 (ou vazio se não achar)",
       "bedrooms": 0,
       "bathrooms": 0,
-      "parking": 0
+      "parking": 0,
+      "urbanSubType": "Apartamento" // Um dos valores da lista acima
     }
   `;
 
@@ -162,6 +157,13 @@ export const extractSampleFromUrl = async (url: string, type: PropertyType): Pro
 
     let text = response.text || "{}";
     text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    // Tenta extrair JSON se houver texto em volta
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+        text = jsonMatch[0];
+    }
+
     const data = JSON.parse(text);
 
     if (!data.price && !data.areaTotal) return null;

@@ -104,7 +104,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         setForm(prev => ({
           ...prev,
           ...extractedData,
-          // Mantém o tipo selecionado se a IA falhar nisso
+          // Mantém o tipo "PropertyType" do formulário se a IA não tiver mudado
           type: type 
         }));
         
@@ -112,7 +112,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         if (extractedData.price) {
           setPriceDisplay(extractedData.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 }));
         }
-        alert("Dados extraídos com sucesso! Verifique o formulário abaixo e salve.");
+        alert("Dados extraídos com sucesso! Verifique o preenchimento automático abaixo (Endereço, Tipo, Áreas, etc).");
       } else {
         alert("Não foi possível extrair dados automaticamente desta URL. Tente preencher manualmente.");
       }
@@ -485,6 +485,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                    <div className="md:col-span-2">
                       <label className="block text-sm font-bold mb-1">Título do Anúncio</label>
                       <input name="title" value={form.title || ''} onChange={handleChange} className="w-full border p-2 rounded" />
+                   </div>
+                    {/* CAMPO DESCRIÇÃO ADICIONADO */}
+                   <div className="md:col-span-2">
+                      <label className="block text-sm font-bold mb-1">Descrição / Detalhes</label>
+                      <textarea name="description" rows={3} value={form.description || ''} onChange={(e) => setForm({...form, description: e.target.value})} className="w-full border p-2 rounded" />
                    </div>
                    <div className="md:col-span-2">
                       <label className="block text-sm font-bold mb-1">URL Original</label>
