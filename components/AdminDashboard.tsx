@@ -368,7 +368,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded bg-green-50 mt-4 animate-fade-in">
                  <h3 className="md:col-span-2 font-bold text-green-800 text-lg border-b border-green-200 pb-2">Detalhes Rurais de Alta Precisão</h3>
                  
-                 {/* ATIVIDADE PRINCIPAL - CORREÇÃO: Adicionada pois estava faltando no form manual */}
+                 {/* ATIVIDADE PRINCIPAL */}
                  <div>
                     <label className="block text-xs font-bold text-gray-600 mb-1">Atividade Principal</label>
                     <select name="ruralActivity" value={form.ruralActivity} onChange={handleChange} className="w-full border p-2 rounded bg-white">
@@ -381,6 +381,62 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                     </select>
                  </div>
 
+                 {/* ACESSIBILIDADE */}
+                 <div>
+                    <label className="block text-xs font-bold text-gray-600 mb-1">Acessibilidade</label>
+                    <select name="access" value={form.access} onChange={handleChange} className="w-full border p-2 rounded bg-white">
+                      <option value="">Selecione...</option>
+                      <option value="Ótimo (asfalto, tráfego permanente)">Ótimo (asfalto)</option>
+                      <option value="Muito Bom (estrada classe, não asfalto)">Muito Bom (estrada classe)</option>
+                      <option value="Bom (não pavimentada, tráfego permanente)">Bom (não pavimentada)</option>
+                      <option value="Regular (não pavimentada, sujeita a interrupção)">Regular (interrupção possível)</option>
+                      <option value="Mau (interrupção na chuva)">Mau (interrupção na chuva)</option>
+                      <option value="Péssimo (interrupção por córrego sem ponte)">Péssimo (sem ponte)</option>
+                      <option value="Encravada">Encravada</option>
+                    </select>
+                 </div>
+
+                 {/* TOPOGRAFIA */}
+                 <div>
+                    <label className="block text-xs font-bold text-gray-600 mb-1">Topografia</label>
+                    <select name="topography" value={form.topography} onChange={handleChange} className="w-full border p-2 rounded bg-white">
+                      <option value="">Selecione...</option>
+                      <option value="Plano">Plano</option>
+                      <option value="Leve-Ondulado">Leve-Ondulado</option>
+                      <option value="Ondulado">Ondulado</option>
+                      <option value="Montanhoso">Montanhoso</option>
+                    </select>
+                 </div>
+
+                 {/* MELHORAMENTOS */}
+                 <div>
+                    <label className="block text-xs font-bold text-gray-600 mb-1">Melhoramentos</label>
+                    <select name="publicImprovements" value={form.publicImprovements} onChange={handleChange} className="w-full border p-2 rounded bg-white">
+                      <option value="">Selecione...</option>
+                      <option value="Luz domiciliar + Força + Rede telefônica">Luz + Força + Telefone</option>
+                      <option value="Luz domiciliar + Força">Luz + Força</option>
+                      <option value="Luz domiciliar + Rede">Luz + Rede</option>
+                      <option value="Luz domiciliar">Somente Luz</option>
+                      <option value="Força + Rede telefônica">Força + Telefone</option>
+                      <option value="Nenhum">Nenhum</option>
+                    </select>
+                 </div>
+
+                 {/* OCUPAÇÃO */}
+                 <div>
+                    <label className="block text-xs font-bold text-gray-600 mb-1">Ocupação</label>
+                    <select name="occupation" value={form.occupation} onChange={handleChange} className="w-full border p-2 rounded bg-white">
+                      <option value="">Selecione...</option>
+                      <option value="Alta: 80 a 100% aberto">Alta: 80 a 100% aberto</option>
+                      <option value="Média-Alta: 70 a 80% aberto">Média-Alta: 70 a 80%</option>
+                      <option value="Média: 50 a 70% aberto">Média: 50 a 70%</option>
+                      <option value="Média-Baixa: 40 a 50% aberto">Média-Baixa: 40 a 50%</option>
+                      <option value="Baixa: 20 a 40% aberto">Baixa: 20 a 40%</option>
+                      <option value="Nula: abaixo de 20%">Nula: abaixo de 20%</option>
+                    </select>
+                 </div>
+
+                 {/* USO DE SOLO (MOVED HERE TO BE NEXT TO OCUPAÇÃO) */}
                  <div>
                     <label className="block text-xs font-bold text-gray-600 mb-1">Uso de Solo</label>
                     <select name="landCapability" value={form.landCapability} onChange={handleChange} className="w-full border p-2 rounded bg-white">
@@ -395,41 +451,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                       <option value="VIII - Abrigo Silvestre">VIII - Abrigo Silvestre</option>
                     </select>
                  </div>
-                 <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">Acessibilidade</label>
-                    <select name="access" value={form.access} onChange={handleChange} className="w-full border p-2 rounded bg-white">
-                      <option value="">Selecione...</option>
-                      <option value="Ótimo (asfalto, tráfego permanente)">Ótimo (asfalto)</option>
-                      <option value="Muito Bom (estrada classe, não asfalto)">Muito Bom (estrada classe)</option>
-                      <option value="Bom (não pavimentada, tráfego permanente)">Bom (não pavimentada)</option>
-                      <option value="Regular (não pavimentada, sujeita a interrupção)">Regular (interrupção possível)</option>
-                      <option value="Mau (interrupção na chuva)">Mau (interrupção na chuva)</option>
-                      <option value="Péssimo (interrupção por córrego sem ponte)">Péssimo (sem ponte)</option>
-                      <option value="Encravada">Encravada</option>
-                    </select>
-                 </div>
-                 <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">Topografia</label>
-                    <select name="topography" value={form.topography} onChange={handleChange} className="w-full border p-2 rounded bg-white">
-                      <option value="">Selecione...</option>
-                      <option value="Plano">Plano</option>
-                      <option value="Leve-Ondulado">Leve-Ondulado</option>
-                      <option value="Ondulado">Ondulado</option>
-                      <option value="Montanhoso">Montanhoso</option>
-                    </select>
-                 </div>
-                 <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">Melhoramentos</label>
-                    <select name="publicImprovements" value={form.publicImprovements} onChange={handleChange} className="w-full border p-2 rounded bg-white">
-                      <option value="">Selecione...</option>
-                      <option value="Luz domiciliar + Força + Rede telefônica">Luz + Força + Telefone</option>
-                      <option value="Luz domiciliar + Força">Luz + Força</option>
-                      <option value="Luz domiciliar + Rede">Luz + Rede</option>
-                      <option value="Luz domiciliar">Somente Luz</option>
-                      <option value="Força + Rede telefônica">Força + Telefone</option>
-                      <option value="Nenhum">Nenhum</option>
-                    </select>
-                 </div>
+
+                 {/* SUPERFÍCIE */}
                  <div>
                     <label className="block text-xs font-bold text-gray-600 mb-1">Superfície</label>
                     <select name="surface" value={form.surface} onChange={handleChange} className="w-full border p-2 rounded bg-white">
@@ -440,18 +463,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                       <option value="Permanentemente Alagada">Permanentemente Alagada</option>
                     </select>
                  </div>
-                 <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">Ocupação</label>
-                    <select name="occupation" value={form.occupation} onChange={handleChange} className="w-full border p-2 rounded bg-white">
-                      <option value="">Selecione...</option>
-                      <option value="Alta: 80 a 100% aberto">Alta: 80 a 100% aberto</option>
-                      <option value="Média-Alta: 70 a 80% aberto">Média-Alta: 70 a 80%</option>
-                      <option value="Média: 50 a 70% aberto">Média: 50 a 70%</option>
-                      <option value="Média-Baixa: 40 a 50% aberto">Média-Baixa: 40 a 50%</option>
-                      <option value="Baixa: 20 a 40% aberto">Baixa: 20 a 40%</option>
-                      <option value="Nula: abaixo de 20%">Nula: abaixo de 20%</option>
-                    </select>
-                 </div>
+
                  <div className="md:col-span-2">
                     <label className="block text-xs font-bold text-gray-600 mb-1">Benfeitorias</label>
                     <select name="improvements" value={form.improvements} onChange={handleChange} className="w-full border p-2 rounded bg-white">
