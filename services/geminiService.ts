@@ -192,40 +192,36 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
   const ai = new GoogleGenAI({ apiKey });
   const modelId = "gemini-2.5-flash";
 
-  // --- ESTRATÉGIA DE BUSCA REFINADA (PORTAIS GIGANTES) ---
+  // --- ESTRATÉGIA DE BUSCA EXPANDIDA (MAXIMIZAR RESULTADOS) ---
   
-  // 1. Definição da Localização
-  // Removemos a rigidez da Rua para aumentar a chance de sucesso
-  // A busca foca em: TIPO + BAIRRO + CIDADE
+  const portals = `(site:imovelweb.com.br OR site:zapimoveis.com.br OR site:vivareal.com.br OR site:olx.com.br OR site:chavesnamao.com.br OR site:quintoandar.com.br OR site:dreamcasa.com.br OR site:mercadolivre.com.br)`;
   
-  const portals = `(site:imovelweb.com.br OR site:zapimoveis.com.br OR site:vivareal.com.br OR site:olx.com.br OR site:chavesnamao.com.br OR site:quintoandar.com.br)`;
-  
-  // Query otimizada para capturar títulos de anúncios
-  // Ex: intitle:"Venda" intitle:"Apartamento" "Vila Mariana" "São Paulo"
-  const searchQuery = `${portals} intitle:"Venda" intitle:"${data.urbanSubType}" "${data.neighborhood}" ${data.city} ${data.state}`;
+  // Query Otimizada: Removemos 'intitle' para pegar resultados onde o bairro está na descrição
+  // Adicionamos exclusão explícita de aluguel/locação
+  const searchQuery = `${portals} venda ${data.urbanSubType} "${data.neighborhood}" ${data.city} ${data.state} -aluguel -locação -temporada`;
 
   const prompt = `
     Atue como um Engenheiro de Avaliações Sênior especialista em NBR 14653.
     
-    OBJETIVO CRÍTICO:
-    Encontrar amostras de mercado REAIS para um ${data.urbanSubType} no bairro ${data.neighborhood}, ${data.city}-${data.state}.
+    OBJETIVO CRÍTICO (EXPANSÃO DE AMOSTRAS):
+    Precisamos encontrar entre 15 a 20 amostras de mercado para um ${data.urbanSubType} em ${data.city}/${data.state}.
     
-    QUERY DE BUSCA: "${searchQuery}"
+    LOCALIZAÇÃO:
+    1. Prioridade Máxima: Bairro "${data.neighborhood}".
+    2. Estratégia de Expansão: SE encontrar poucas ofertas no bairro exato, capture ofertas em BAIRROS VIZINHOS ou regiões próximas na mesma cidade que tenham padrão semelhante.
     
-    INSTRUÇÕES DE EXTRAÇÃO (IMPORTANTE):
-    1. Analise os resultados da busca (snippets).
-    2. Identifique anúncios que contenham PREÇO (R$) e ÁREA (m²).
-    3. Ignore aluguel. Busque apenas VENDA.
-    4. Se o bairro exato "${data.neighborhood}" tiver poucas opções, aceite bairros imediatamente vizinhos, mas indique no campo 'neighborhood'.
+    QUERY DE BUSCA REALIZADA: "${searchQuery}"
     
-    REQUISITOS DE DADOS:
-    - Preço deve ser numérico (ex: 500000).
-    - Área deve ser numérica (ex: 100).
+    INSTRUÇÕES DE EXTRAÇÃO:
+    1. Ignore anúncios de Aluguel/Locação. Apenas VENDA.
+    2. Ignore Leilão ou ágio.
+    3. Extraia o máximo de anúncios possível da busca (meta: 20 itens).
+    4. Indique o bairro real encontrado no campo 'neighborhood'.
     
     SAÍDA JSON OBRIGATÓRIA (Array de objetos):
     [
       {
-        "title": "Título Completo do Snippet",
+        "title": "Título Completo",
         "price": 500000,
         "areaTotal": 80,
         "bedrooms": 2,

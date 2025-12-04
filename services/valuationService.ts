@@ -1,5 +1,4 @@
 
-
 import { PropertyData, ValuationResult, PropertyType, MarketSample } from "../types";
 import { filterSamples, getSamplesByCities } from "./storageService";
 import { getNeighboringCities, findUrbanSamples } from "./geminiService";
@@ -211,7 +210,12 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
   const normName = isRural ? 'NBR 14653-3 (Imóveis Rurais)' : 'NBR 14653-2 (Imóveis Urbanos)';
   
   const OFFER_FACTOR = 0.90; // Fator de Oferta Obrigatório
-  const TARGET_SAMPLE_COUNT = 5;
+  
+  // TENTATIVA: Tenta formar grupo de 5. Se falhar, tenta 4 (Grau I / Estimativa)
+  let TARGET_SAMPLE_COUNT = 5;
+  if (poolSamples.length < 5 && poolSamples.length >= 4) {
+      TARGET_SAMPLE_COUNT = 4;
+  }
 
   // 1. Homogeneização do Pool
   let homogenizedPool = poolSamples.map(sample => {
@@ -289,8 +293,9 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
   });
 
   // --- FILTRAGEM PRÉVIA (SANEAMENTO) ---
-  // Se temos muitas amostras (>=10), removemos as que são absurdas antes de calcular a média.
-  if (homogenizedPool.length >= 10) {
+  // Só aplicamos o saneamento rígido se tivermos uma boa quantidade de amostras (>=8)
+  // Caso contrário, corremos o risco de ficar sem nenhuma.
+  if (homogenizedPool.length >= 8) {
       const prices = homogenizedPool.map(s => s.homogenizedUnitPrice);
       const median = getMedian(prices);
       // Remove amostras que fogem mais de 50% da mediana (ruído grosso)
@@ -301,17 +306,15 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
   }
 
   // 2. Seleção Estatística (Combinatória para melhor conjunto)
-  // CRITÉRIO REVISADO: GRAU II DE PRECISÃO (CV <= 0.15)
-  // O algoritmo tenta encontrar a melhor combinação de 5 amostras que resulte no menor CV possível.
   
   let validSamples = [...homogenizedPool];
   
   if (homogenizedPool.length >= TARGET_SAMPLE_COUNT) {
-      // Nota: Com muitas amostras (ex: 24), a combinação de 5 pode ser pesada (42k iterações).
-      // Se for muito grande, limitamos a busca às X melhores amostras ordenadas pela mediana.
+      // Nota: Com muitas amostras (ex: 24), a combinação de 5 pode ser pesada.
+      // Limitamos a busca às X melhores amostras ordenadas pela mediana.
       let poolForCombo = homogenizedPool;
-      if (homogenizedPool.length > 25) {
-          poolForCombo = homogenizedPool.slice(0, 25);
+      if (homogenizedPool.length > 20) {
+          poolForCombo = homogenizedPool.slice(0, 20);
       }
 
       const combinations = getCombinations(poolForCombo, TARGET_SAMPLE_COUNT);
@@ -357,26 +360,26 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
   const stdDev = Math.sqrt(variance);
   const coeffVariation = avgHomogenizedUnitPrice > 0 ? (stdDev / avgHomogenizedUnitPrice) : 0;
   
-  // --- VALIDAÇÃO RÍGIDA DE GRAU DE PRECISÃO (APENAS URBANO) ---
+  // --- VALIDAÇÃO DE PRECISÃO ---
   if (!isRural) {
-    // NBR 14653-2: Grau II exige mínimo de 5 amostras
-    if (count < 5) {
+    // Se tiver menos que 4 (mínimo absoluto para estatística t-Student minimamente confiável), falha.
+    if (count < 4) {
        throw new Error("URBAN_SAMPLE_COUNT_LOW");
     }
     // NBR 14653-2: Grau II exige CV <= 0.15 (15%)
-    // SE FOR MAIOR QUE 0.15, REJEITA IMEDIATAMENTE. NÃO GERA GRAU I.
-    if (coeffVariation > 0.15) {
+    // Relaxamos o erro fatal: Se CV > 0.15, apenas rebaixa o grau, não aborta (se o usuário permitir).
+    // Mas para manter segurança, bloqueamos CV absurdos (> 0.40)
+    if (coeffVariation > 0.40) {
        throw new Error("URBAN_PRECISION_LOW");
     }
   }
 
   let precisionGrade = "Fora de Grau";
-  if (coeffVariation <= 0.10) precisionGrade = "Grau III (Alta Precisão)";
-  else if (coeffVariation <= 0.15) precisionGrade = "Grau II (Média Precisão)";
+  if (count >= 5 && coeffVariation <= 0.10) precisionGrade = "Grau III (Alta Precisão)";
+  else if (count >= 5 && coeffVariation <= 0.15) precisionGrade = "Grau II (Média Precisão)";
+  else if (count >= 3 && coeffVariation <= 0.25) precisionGrade = "Grau I (Baixa Precisão)";
   else {
-      // Se for Urbano, o erro acima já abortou.
-      // Se for Rural (onde a tolerância pode ser diferente), mantém-se como Grau I.
-      precisionGrade = "Grau I (Baixa Precisão)";
+      precisionGrade = "Estimativa (Sem Grau NBR)";
   }
   
   const tStudent = getTStudent70(count); 
