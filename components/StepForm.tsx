@@ -150,7 +150,7 @@ const StepForm: React.FC<StepFormProps> = ({ propertyType, initialData, onSubmit
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="md:col-span-2">
-                <label className="block text-sm font-bold text-gray-800 mb-1">Capacidade de Uso da Terra (Classe)</label>
+                <label className="block text-sm font-bold text-gray-800 mb-1">Uso de Solo</label>
                 <select name="landCapability" value={formData.landCapability} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white">
                   <option value="">Selecione...</option>
                   <option value="I - Culturas (Sem problemas)">I - Culturas (Sem problemas)</option>
@@ -165,7 +165,7 @@ const StepForm: React.FC<StepFormProps> = ({ propertyType, initialData, onSubmit
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Situação e Acesso</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Acessibilidade</label>
                 <select name="access" value={formData.access} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white">
                   <option value="">Selecione...</option>
                   <option value="Ótimo (asfalto, tráfego permanente)">Ótimo (asfalto)</option>
