@@ -127,7 +127,7 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
 
   const prompt = `
     Atue como um Engenheiro de Avaliações rigoroso.
-    Utilize a ferramenta de BUSCA DO GOOGLE (Google Search) para encontrar e estruturar 20 ofertas REAIS e ATUAIS (Precisamos de muitas amostras para filtrar outliers estatísticos).
+    Utilize a ferramenta de BUSCA DO GOOGLE (Google Search) para encontrar e estruturar 10 a 12 ofertas REAIS e ATUAIS.
     
     QUERY DE BUSCA: "${searchQuery}"
     

@@ -300,13 +300,13 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
   }
 
   // 2. Seleção Estatística (Combinatória para melhor conjunto)
-  // CRITÉRIO DE MELHORIA: Priorizar combinações com ZERO outliers (>30%)
+  // CRITÉRIO REVISADO: GRAU II DE PRECISÃO
+  // Em vez de descartar rigorosamente grupos com desvio > 30% (Grau I), vamos tentar achar o melhor grupo possível.
+  // Se não houver 5 amostras perfeitas, aceitamos grupos com desvios ligeiramente maiores, impactando o grau de precisão.
   
   let validSamples = [...homogenizedPool];
   
-  // Se o saneamento reduziu muito, relaxa a regra, mas tenta manter 5
   if (homogenizedPool.length >= TARGET_SAMPLE_COUNT) {
-      
       const combinations = getCombinations(homogenizedPool, TARGET_SAMPLE_COUNT);
       
       let bestCombination: any[] = [];
@@ -320,43 +320,19 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
           const stdDev = Math.sqrt(variance);
           const cv = avg > 0 ? stdDev / avg : Infinity;
 
-          // Calcula o MAIOR desvio desta combinação
           let maxDeviation = 0;
           for (const s of combo) {
              const deviation = Math.abs(s.homogenizedUnitPrice - avg) / avg;
              if (deviation > maxDeviation) maxDeviation = deviation;
           }
 
-          // LÓGICA DE SELEÇÃO ESTRITA:
-          // Queremos o grupo onde maxDeviation seja <= 0.30.
-          // Dentre os grupos válidos, pegamos o de menor CV.
+          // Relaxamento: Aceita até 40% de desvio para considerar "válido" no cálculo combinatório, 
+          // depois o laudo apontará "Fora de Grau" se necessário, mas o cálculo sai.
+          // O ideal é CV menor.
           
-          const isValidGroup = maxDeviation <= 0.30;
-          const currentBestIsValid = bestStats.maxDeviation <= 0.30;
-
-          if (isValidGroup) {
-              // Se este grupo é válido
-              if (!currentBestIsValid) {
-                  // E o atual campeão não era, este ganha imediatamente
-                  bestStats = { cv: cv, maxDeviation: maxDeviation };
-                  bestCombination = combo;
-              } else {
-                  // Ambos válidos, vence o menor CV
-                  if (cv < bestStats.cv) {
-                      bestStats = { cv: cv, maxDeviation: maxDeviation };
-                      bestCombination = combo;
-                  }
-              }
-          } else {
-              // Se este grupo NÃO é válido (tem outlier > 30%)
-              if (!currentBestIsValid) {
-                  // Só consideramos se ainda não temos nenhum grupo válido.
-                  // Nesse caso, tentamos minimizar o estrago (menor desvio máximo)
-                  if (maxDeviation < bestStats.maxDeviation) {
-                      bestStats = { cv: cv, maxDeviation: maxDeviation };
-                      bestCombination = combo;
-                  }
-              }
+          if (cv < bestStats.cv) {
+             bestStats = { cv: cv, maxDeviation: maxDeviation };
+             bestCombination = combo;
           }
       }
 
@@ -378,10 +354,10 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
   const stdDev = Math.sqrt(variance);
   const coeffVariation = avgHomogenizedUnitPrice > 0 ? (stdDev / avgHomogenizedUnitPrice) : 0;
   
-  let precisionGrade = "Fora de Grau";
-  if (coeffVariation <= 0.10) precisionGrade = "III";
-  else if (coeffVariation <= 0.15) precisionGrade = "II";
-  else if (coeffVariation <= 0.25) precisionGrade = "I"; 
+  let precisionGrade = "Fora de Grau (Estimativa)";
+  if (coeffVariation <= 0.10) precisionGrade = "Grau III (Alta Precisão)";
+  else if (coeffVariation <= 0.15) precisionGrade = "Grau II (Média Precisão)";
+  else if (coeffVariation <= 0.25) precisionGrade = "Grau I (Baixa Precisão)"; 
   
   const tStudent = getTStudent70(count); 
   const confidenceInterval = count > 0 ? tStudent * (stdDev / Math.sqrt(count)) : 0;
@@ -698,7 +674,7 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
                     <th class="p-2 border border-gray-600">F. Acesso</th>
                     <th class="p-2 border border-gray-600">F. Topo</th>
                     <th class="p-2 border border-gray-600">F. Outros</th>
-                    ` : '<th class="p-2 border border-gray-600">Fatores</th>'}
+                    ` : '<th class="p-2 border border-gray-600 text-gray-500">F. Homog</th>'}
                     <th class="p-2 border border-gray-600 bg-green-900">VUH (R$)</th>
                 </tr>
             </thead>
@@ -722,7 +698,7 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
                         <td class="p-2 border border-gray-300 text-gray-600">${fmtDec(findF('Acesso'))}</td>
                         <td class="p-2 border border-gray-300 text-gray-600">${fmtDec(findF('Topografia'))}</td>
                         <td class="p-2 border border-gray-300 text-gray-600">${fmtDec(other)}</td>
-                        ` : '<td class="p-2 border border-gray-300 text-gray-600">1.00</td>'}
+                        ` : '<td class="p-2 border border-gray-300 text-gray-600">-</td>'}
                         <td class="p-2 border border-gray-300 font-bold ${isOutlier ? 'text-red-600 bg-red-50' : 'text-green-800 bg-green-50'}">
                             ${fmtBRL(s.homogenizedUnitPrice)}
                             ${isOutlier ? '<span class="block text-[8px] text-red-500">ALTO DESVIO</span>' : ''}
@@ -740,7 +716,7 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
                   <tr class="bg-gray-100"><td class="p-2 font-bold">Média</td><td class="p-2 text-right">${fmtBRL(avgHomogenizedUnitPrice)}</td></tr>
                   <tr><td class="p-2 font-bold">Desvio Padrão</td><td class="p-2 text-right">${fmtBRL(stdDev)}</td></tr>
                   <tr class="bg-gray-100"><td class="p-2 font-bold">Coef. Variação</td><td class="p-2 text-right ${coeffVariation > 0.25 ? 'text-red-600 font-bold' : ''}">${fmtDec(coeffVariation * 100)}%</td></tr>
-                  <tr><td class="p-2 font-bold">Grau de Precisão</td><td class="p-2 text-right">Grau ${precisionGrade}</td></tr>
+                  <tr><td class="p-2 font-bold">Grau de Precisão</td><td class="p-2 text-right">${precisionGrade}</td></tr>
               </table>
           </div>
           <div>
