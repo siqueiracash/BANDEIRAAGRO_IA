@@ -450,6 +450,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               {/* FORMULÁRIO URBANO ESPECÍFICO */}
               {!isRural && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
+                   <div className="md:col-span-2">
+                      <label className="block text-sm font-bold mb-1">Tipo de Imóvel</label>
+                      <select name="urbanSubType" value={form.urbanSubType} onChange={handleChange} className="w-full border p-2 rounded bg-white">
+                        <option value="Apartamento">Apartamento</option>
+                        <option value="Casa">Casa</option>
+                        <option value="Sobrado">Sobrado</option>
+                        <option value="Terreno">Terreno</option>
+                        <option value="Prédio Comercial">Prédio Comercial</option>
+                      </select>
+                   </div>
                    <div>
                       <label className="block text-sm font-bold mb-1">Bairro</label>
                       <input name="neighborhood" value={form.neighborhood || ''} onChange={handleChange} className="w-full border p-2 rounded" />
