@@ -311,9 +311,13 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
   const coeffVariation = avgHomogenizedUnitPrice > 0 ? (stdDev / avgHomogenizedUnitPrice) : 0;
   
   // Grau de Precisão (NBR 14653)
-  let precisionGrade = "III";
-  if (coeffVariation > 0.15) precisionGrade = "II";
-  if (coeffVariation > 0.30) precisionGrade = "Fora de Grau";
+  // Classificação Rigorosa: III (<=10%), II (<=15%), I (<=25% - aceitável)
+  let precisionGrade = "Fora de Grau";
+  if (coeffVariation <= 0.10) precisionGrade = "III";
+  else if (coeffVariation <= 0.15) precisionGrade = "II";
+  else if (coeffVariation <= 0.25) precisionGrade = "I"; // Margem um pouco mais flexível para I
+  
+  // Nota: Se > 0.25 (ou 0.30 em alguns contextos), é considerado fora das especificações normais.
 
   // Intervalo de Confiança (80% - t-student simplificado para n=5 aprox 1.533)
   // Para n=5, t=1.533 (80%). Ajustado para n=5 fixo = 1.533
@@ -622,6 +626,11 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
                ${homogenizedSamples.map((s, i) => {
                   const findF = (name: string) => s.factors?.find((f:any) => f.name === name)?.value || 1.00;
                   const other = findF('Solo') * findF('Ocupação') * findF('Benfeitorias') * findF('Melhoramentos');
+                  
+                  // Highlight logic: Se desviar mais que 30% da média, marca em vermelho
+                  const deviation = Math.abs(s.homogenizedUnitPrice - avgHomogenizedUnitPrice) / avgHomogenizedUnitPrice;
+                  const isOutlier = deviation > 0.30;
+
                   return `
                     <tr class="${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}">
                         <td class="p-2 border border-gray-300 font-bold">${i + 1}</td>
@@ -634,7 +643,10 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
                         <td class="p-2 border border-gray-300 text-gray-600">${fmtDec(findF('Topografia'))}</td>
                         <td class="p-2 border border-gray-300 text-gray-600">${fmtDec(other)}</td>
                         ` : '<td class="p-2 border border-gray-300 text-gray-600">1.00</td>'}
-                        <td class="p-2 border border-gray-300 font-bold text-green-800 bg-green-50">${fmtBRL(s.homogenizedUnitPrice)}</td>
+                        <td class="p-2 border border-gray-300 font-bold ${isOutlier ? 'text-red-600 bg-red-50' : 'text-green-800 bg-green-50'}">
+                            ${fmtBRL(s.homogenizedUnitPrice)}
+                            ${isOutlier ? '<span class="block text-[8px] text-red-500">OUTLIER</span>' : ''}
+                        </td>
                     </tr>
                   `;
                }).join('')}
@@ -647,7 +659,7 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
               <table class="w-full border border-gray-300">
                   <tr class="bg-gray-100"><td class="p-2 font-bold">Média</td><td class="p-2 text-right">${fmtBRL(avgHomogenizedUnitPrice)}</td></tr>
                   <tr><td class="p-2 font-bold">Desvio Padrão</td><td class="p-2 text-right">${fmtBRL(stdDev)}</td></tr>
-                  <tr class="bg-gray-100"><td class="p-2 font-bold">Coef. Variação</td><td class="p-2 text-right">${fmtDec(coeffVariation * 100)}%</td></tr>
+                  <tr class="bg-gray-100"><td class="p-2 font-bold">Coef. Variação</td><td class="p-2 text-right ${coeffVariation > 0.25 ? 'text-red-600 font-bold' : ''}">${fmtDec(coeffVariation * 100)}%</td></tr>
                   <tr><td class="p-2 font-bold">Grau de Precisão</td><td class="p-2 text-right">Grau ${precisionGrade}</td></tr>
               </table>
           </div>
