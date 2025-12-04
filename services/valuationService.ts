@@ -191,6 +191,15 @@ function getCombinations<T>(array: T[], size: number): T[][] {
   return p([], 0);
 }
 
+// Auxiliar para calcular mediana (para filtragem prévia)
+const getMedian = (values: number[]) => {
+  if (values.length === 0) return 0;
+  values.sort((a, b) => a - b);
+  const half = Math.floor(values.length / 2);
+  if (values.length % 2) return values[half];
+  return (values[half - 1] + values[half]) / 2.0;
+};
+
 // =========================================================================================
 // CORE ENGINE: CALCULA E GERA O HTML
 // =========================================================================================
@@ -204,7 +213,7 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
   const TARGET_SAMPLE_COUNT = 5;
 
   // 1. Homogeneização do Pool
-  const homogenizedPool = poolSamples.map(sample => {
+  let homogenizedPool = poolSamples.map(sample => {
     let unitPrice = sample.pricePerUnit;
     let appliedFactorsList: { name: string, value: number, desc: string }[] = [];
     
@@ -278,19 +287,30 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
     };
   });
 
+  // --- FILTRAGEM PRÉVIA (SANEAMENTO) ---
+  // Se temos muitas amostras (>=10), removemos as que são absurdas antes de calcular a média.
+  if (homogenizedPool.length >= 10) {
+      const prices = homogenizedPool.map(s => s.homogenizedUnitPrice);
+      const median = getMedian(prices);
+      // Remove amostras que fogem mais de 50% da mediana (ruído grosso)
+      homogenizedPool = homogenizedPool.filter(s => {
+          const diff = Math.abs(s.homogenizedUnitPrice - median);
+          return (diff / median) <= 0.50;
+      });
+  }
+
   // 2. Seleção Estatística (Combinatória para melhor conjunto)
   // CRITÉRIO DE MELHORIA: Priorizar combinações com ZERO outliers (>30%)
   
   let validSamples = [...homogenizedPool];
   
+  // Se o saneamento reduziu muito, relaxa a regra, mas tenta manter 5
   if (homogenizedPool.length >= TARGET_SAMPLE_COUNT) {
-      // Limita combinatória se houver muitas amostras para não travar (ex: 20 amostras)
-      // Se tivermos 12 amostras, C(12,5) = 792 (ok).
       
       const combinations = getCombinations(homogenizedPool, TARGET_SAMPLE_COUNT);
       
       let bestCombination: any[] = [];
-      let bestStats = { cv: Infinity, outliers: Infinity };
+      let bestStats = { cv: Infinity, maxDeviation: Infinity };
 
       for (const combo of combinations) {
           const sum = combo.reduce((acc, s) => acc + s.homogenizedUnitPrice, 0);
@@ -300,24 +320,42 @@ const calculateAndGenerateReport = (data: PropertyData, poolSamples: MarketSampl
           const stdDev = Math.sqrt(variance);
           const cv = avg > 0 ? stdDev / avg : Infinity;
 
-          // Contagem de Outliers (Desvio > 30% em relação à média deste grupo)
-          let outlierCount = 0;
+          // Calcula o MAIOR desvio desta combinação
+          let maxDeviation = 0;
           for (const s of combo) {
              const deviation = Math.abs(s.homogenizedUnitPrice - avg) / avg;
-             if (deviation > 0.30) outlierCount++;
+             if (deviation > maxDeviation) maxDeviation = deviation;
           }
 
-          // LÓGICA DE SELEÇÃO:
-          // 1. Prioridade absoluta: Menor número de outliers.
-          // 2. Desempate: Menor CV.
+          // LÓGICA DE SELEÇÃO ESTRITA:
+          // Queremos o grupo onde maxDeviation seja <= 0.30.
+          // Dentre os grupos válidos, pegamos o de menor CV.
           
-          if (outlierCount < bestStats.outliers) {
-              bestStats = { cv: cv, outliers: outlierCount };
-              bestCombination = combo;
-          } else if (outlierCount === bestStats.outliers) {
-              if (cv < bestStats.cv) {
-                  bestStats = { cv: cv, outliers: outlierCount };
+          const isValidGroup = maxDeviation <= 0.30;
+          const currentBestIsValid = bestStats.maxDeviation <= 0.30;
+
+          if (isValidGroup) {
+              // Se este grupo é válido
+              if (!currentBestIsValid) {
+                  // E o atual campeão não era, este ganha imediatamente
+                  bestStats = { cv: cv, maxDeviation: maxDeviation };
                   bestCombination = combo;
+              } else {
+                  // Ambos válidos, vence o menor CV
+                  if (cv < bestStats.cv) {
+                      bestStats = { cv: cv, maxDeviation: maxDeviation };
+                      bestCombination = combo;
+                  }
+              }
+          } else {
+              // Se este grupo NÃO é válido (tem outlier > 30%)
+              if (!currentBestIsValid) {
+                  // Só consideramos se ainda não temos nenhum grupo válido.
+                  // Nesse caso, tentamos minimizar o estrago (menor desvio máximo)
+                  if (maxDeviation < bestStats.maxDeviation) {
+                      bestStats = { cv: cv, maxDeviation: maxDeviation };
+                      bestCombination = combo;
+                  }
               }
           }
       }
