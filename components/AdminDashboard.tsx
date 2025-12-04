@@ -368,8 +368,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded bg-green-50 mt-4 animate-fade-in">
                  <h3 className="md:col-span-2 font-bold text-green-800 text-lg border-b border-green-200 pb-2">Detalhes Rurais de Alta Precisão</h3>
                  
-                 {/* ATIVIDADE PRINCIPAL */}
-                 <div>
+                 {/* 1. Atividade Principal (Largura total) */}
+                 <div className="md:col-span-2">
                     <label className="block text-xs font-bold text-gray-600 mb-1">Atividade Principal</label>
                     <select name="ruralActivity" value={form.ruralActivity} onChange={handleChange} className="w-full border p-2 rounded bg-white">
                       <option value="Lavoura">Lavoura</option>
@@ -381,7 +381,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                     </select>
                  </div>
 
-                 {/* ACESSIBILIDADE */}
+                 {/* 2. Benfeitorias | Acessibilidade */}
+                 <div>
+                    <label className="block text-xs font-bold text-gray-600 mb-1">Benfeitorias</label>
+                    <select name="improvements" value={form.improvements} onChange={handleChange} className="w-full border p-2 rounded bg-white">
+                      <option value="">Selecione...</option>
+                      <option value="Benfeitorias de padrão Superior ao local">Superior ao local</option>
+                      <option value="Benfeitorias de padrão Comum ao local">Comum ao local</option>
+                      <option value="Benfeitorias de padrão Inferior ao local ou Inexistentes">Inferior ou Inexistentes</option>
+                    </select>
+                 </div>
                  <div>
                     <label className="block text-xs font-bold text-gray-600 mb-1">Acessibilidade</label>
                     <select name="access" value={form.access} onChange={handleChange} className="w-full border p-2 rounded bg-white">
@@ -396,33 +405,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                     </select>
                  </div>
 
-                 {/* TOPOGRAFIA */}
+                 {/* 3. Superficie | Ocupação */}
                  <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">Topografia</label>
-                    <select name="topography" value={form.topography} onChange={handleChange} className="w-full border p-2 rounded bg-white">
+                    <label className="block text-xs font-bold text-gray-600 mb-1">Superfície</label>
+                    <select name="surface" value={form.surface} onChange={handleChange} className="w-full border p-2 rounded bg-white">
                       <option value="">Selecione...</option>
-                      <option value="Plano">Plano</option>
-                      <option value="Leve-Ondulado">Leve-Ondulado</option>
-                      <option value="Ondulado">Ondulado</option>
-                      <option value="Montanhoso">Montanhoso</option>
+                      <option value="Seca">Seca</option>
+                      <option value="Alagadiça">Alagadiça</option>
+                      <option value="Brejosa ou Pantanosa">Brejosa ou Pantanosa</option>
+                      <option value="Permanentemente Alagada">Permanentemente Alagada</option>
                     </select>
                  </div>
-
-                 {/* MELHORAMENTOS */}
-                 <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">Melhoramentos</label>
-                    <select name="publicImprovements" value={form.publicImprovements} onChange={handleChange} className="w-full border p-2 rounded bg-white">
-                      <option value="">Selecione...</option>
-                      <option value="Luz domiciliar + Força + Rede telefônica">Luz + Força + Telefone</option>
-                      <option value="Luz domiciliar + Força">Luz + Força</option>
-                      <option value="Luz domiciliar + Rede">Luz + Rede</option>
-                      <option value="Luz domiciliar">Somente Luz</option>
-                      <option value="Força + Rede telefônica">Força + Telefone</option>
-                      <option value="Nenhum">Nenhum</option>
-                    </select>
-                 </div>
-
-                 {/* OCUPAÇÃO */}
                  <div>
                     <label className="block text-xs font-bold text-gray-600 mb-1">Ocupação</label>
                     <select name="occupation" value={form.occupation} onChange={handleChange} className="w-full border p-2 rounded bg-white">
@@ -436,7 +429,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                     </select>
                  </div>
 
-                 {/* USO DE SOLO (MOVED HERE TO BE NEXT TO OCUPAÇÃO) */}
+                 {/* 4. Uso de Solo | Topografia */}
                  <div>
                     <label className="block text-xs font-bold text-gray-600 mb-1">Uso de Solo</label>
                     <select name="landCapability" value={form.landCapability} onChange={handleChange} className="w-full border p-2 rounded bg-white">
@@ -451,26 +444,28 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                       <option value="VIII - Abrigo Silvestre">VIII - Abrigo Silvestre</option>
                     </select>
                  </div>
-
-                 {/* SUPERFÍCIE */}
                  <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">Superfície</label>
-                    <select name="surface" value={form.surface} onChange={handleChange} className="w-full border p-2 rounded bg-white">
+                    <label className="block text-xs font-bold text-gray-600 mb-1">Topografia</label>
+                    <select name="topography" value={form.topography} onChange={handleChange} className="w-full border p-2 rounded bg-white">
                       <option value="">Selecione...</option>
-                      <option value="Seca">Seca</option>
-                      <option value="Alagadiça">Alagadiça</option>
-                      <option value="Brejosa ou Pantanosa">Brejosa ou Pantanosa</option>
-                      <option value="Permanentemente Alagada">Permanentemente Alagada</option>
+                      <option value="Plano">Plano</option>
+                      <option value="Leve-Ondulado">Leve-Ondulado</option>
+                      <option value="Ondulado">Ondulado</option>
+                      <option value="Montanhoso">Montanhoso</option>
                     </select>
                  </div>
 
+                 {/* 5. Melhoramentos (Largura total) */}
                  <div className="md:col-span-2">
-                    <label className="block text-xs font-bold text-gray-600 mb-1">Benfeitorias</label>
-                    <select name="improvements" value={form.improvements} onChange={handleChange} className="w-full border p-2 rounded bg-white">
+                    <label className="block text-xs font-bold text-gray-600 mb-1">Melhoramentos</label>
+                    <select name="publicImprovements" value={form.publicImprovements} onChange={handleChange} className="w-full border p-2 rounded bg-white">
                       <option value="">Selecione...</option>
-                      <option value="Benfeitorias de padrão Superior ao local">Superior ao local</option>
-                      <option value="Benfeitorias de padrão Comum ao local">Comum ao local</option>
-                      <option value="Benfeitorias de padrão Inferior ao local ou Inexistentes">Inferior ou Inexistentes</option>
+                      <option value="Luz domiciliar + Força + Rede telefônica">Luz + Força + Telefone</option>
+                      <option value="Luz domiciliar + Força">Luz + Força</option>
+                      <option value="Luz domiciliar + Rede">Luz + Rede</option>
+                      <option value="Luz domiciliar">Somente Luz</option>
+                      <option value="Força + Rede telefônica">Força + Telefone</option>
+                      <option value="Nenhum">Nenhum</option>
                     </select>
                  </div>
               </div>
