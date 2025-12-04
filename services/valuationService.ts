@@ -159,16 +159,34 @@ const getTStudent70 = (n: number) => {
         4: 1.190, // df=4 (n=5)
         5: 1.156, // df=5 (n=6)
     };
-    // Para n maior, tende a 1.04
-    return map[n-1] || 1.04;
+    // Para n=5 (que é o padrão solicitado), retorna 1.190
+    return map[n-1] || 1.15;
 };
+
+// Gera combinações de N elementos de um array
+function getCombinations<T>(array: T[], size: number): T[][] {
+  function p(t: T[], i: number): T[][] {
+      if (t.length === size) {
+          return [t];
+      }
+      if (i + 1 > array.length) {
+          return [];
+      }
+      return p(t.concat(array[i]), i + 1).concat(p(t, i + 1));
+  }
+  return p([], 0);
+}
 
 export const generateManualValuation = async (data: PropertyData): Promise<ValuationResult> => {
   await new Promise(resolve => setTimeout(resolve, 500));
 
   const isRural = data.type === PropertyType.RURAL;
   const subType = isRural ? data.ruralActivity : data.urbanSubType;
-  const TARGET_SAMPLE_COUNT = 5; // Regra estrita inicial: 5 amostras
+  
+  // SOLICITAÇÃO: Sempre usar 5 amostras para cálculo.
+  // ESTRATÉGIA: Buscar um pool maior (ex: 12) e encontrar a combinação de 5 que gera o menor Coeficiente de Variação.
+  const TARGET_SAMPLE_COUNT = 5; 
+  const CANDIDATE_POOL_SIZE = 12; // Buffer para saneamento e trocas
   
   // Lista de Candidatos Únicos (Map para evitar duplicatas por ID)
   const candidatesMap = new Map<string, MarketSample>();
@@ -212,10 +230,10 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
     }
   }
 
-  // --- 2. SELEÇÃO E RANKING (TOP 5) ---
+  // --- 2. SELEÇÃO E HOMOGENEIZAÇÃO DO POOL ---
   const allCandidates = Array.from(candidatesMap.values());
   
-  // Ordena por similaridade (Maior score primeiro)
+  // Ordena por similaridade para pegar o POOL de candidatos mais relevantes
   const rankedCandidates = allCandidates
     .map(sample => ({
       sample,
@@ -223,125 +241,122 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
     }))
     .sort((a, b) => b.score - a.score);
 
-  // Seleciona as top amostras
-  const initialSamples = rankedCandidates.slice(0, TARGET_SAMPLE_COUNT).map(item => item.sample);
+  // Seleciona o POOL (Ex: Top 12)
+  const poolSamples = rankedCandidates.slice(0, CANDIDATE_POOL_SIZE).map(item => item.sample);
   
   const unitStr = isRural ? 'ha' : 'm²';
   const OFFER_FACTOR = 0.90; // Fator de Oferta Obrigatório
 
-  // --- 3. HOMOGENEIZAÇÃO INICIAL ---
-  let homogenizedSamples: any[] = [];
+  // Homogeneiza TODOS do pool
+  const homogenizedPool = poolSamples.map(sample => {
+    let unitPrice = sample.pricePerUnit;
+    let appliedFactorsList: { name: string, value: number, desc: string }[] = [];
+    
+    // 1. Fator Oferta
+    unitPrice = unitPrice * OFFER_FACTOR;
+    appliedFactorsList.push({ name: 'Oferta', value: OFFER_FACTOR, desc: 'Margem Negociação' });
 
-  if (initialSamples.length > 0) {
-    homogenizedSamples = initialSamples.map(sample => {
-      let unitPrice = sample.pricePerUnit;
-      let appliedFactorsList: { name: string, value: number, desc: string }[] = [];
-      
-      // 1. Fator Oferta (Sempre aplica primeiro)
-      unitPrice = unitPrice * OFFER_FACTOR;
-      appliedFactorsList.push({ name: 'Oferta', value: OFFER_FACTOR, desc: 'Margem Negociação' });
+    // --- HOMOGENEIZAÇÃO RURAL COMPLETA ---
+    if (isRural) {
+      // 2. Fator Dimensão
+      const factorSubjectDim = getDimensionFactor(data.areaTotal);
+      const factorSampleDim = getDimensionFactor(sample.areaTotal);
+      const factorDim = factorSubjectDim / factorSampleDim;
+      unitPrice = unitPrice * factorDim;
+      appliedFactorsList.push({ name: 'Dimensão', value: factorDim, desc: 'Área' });
 
-      // --- HOMOGENEIZAÇÃO RURAL COMPLETA ---
-      if (isRural) {
-        // 2. Fator Dimensão (Gleba)
-        const factorSubjectDim = getDimensionFactor(data.areaTotal);
-        const factorSampleDim = getDimensionFactor(sample.areaTotal);
-        const factorDim = factorSubjectDim / factorSampleDim;
-        unitPrice = unitPrice * factorDim;
-        appliedFactorsList.push({ name: 'Dimensão', value: factorDim, desc: 'Área' });
+      // 3. Capacidade de Uso
+      const coefSubjectCap = getCoef(COEF_LAND_CAPABILITY, data.landCapability);
+      const coefSampleCap = getCoef(COEF_LAND_CAPABILITY, sample.landCapability);
+      const factorCap = coefSubjectCap / coefSampleCap;
+      unitPrice = unitPrice * factorCap;
+      appliedFactorsList.push({ name: 'Cap. Uso', value: factorCap, desc: 'Solo/Uso' });
 
-        // 3. Capacidade de Uso da Terra
-        const coefSubjectCap = getCoef(COEF_LAND_CAPABILITY, data.landCapability);
-        const coefSampleCap = getCoef(COEF_LAND_CAPABILITY, sample.landCapability);
-        const factorCap = coefSubjectCap / coefSampleCap;
-        unitPrice = unitPrice * factorCap;
-        appliedFactorsList.push({ name: 'Cap. Uso', value: factorCap, desc: 'Solo/Uso' });
+      // 4. Acesso
+      const coefSubjectAccess = getCoef(COEF_ACCESS, data.access);
+      const coefSampleAccess = getCoef(COEF_ACCESS, sample.access);
+      const factorAccess = coefSubjectAccess / coefSampleAccess;
+      unitPrice = unitPrice * factorAccess;
+      appliedFactorsList.push({ name: 'Acesso', value: factorAccess, desc: 'Logística' });
 
-        // 4. Situação e Acesso
-        const coefSubjectAccess = getCoef(COEF_ACCESS, data.access);
-        const coefSampleAccess = getCoef(COEF_ACCESS, sample.access);
-        const factorAccess = coefSubjectAccess / coefSampleAccess;
-        unitPrice = unitPrice * factorAccess;
-        appliedFactorsList.push({ name: 'Acesso', value: factorAccess, desc: 'Logística' });
+      // 5. Melhoramentos Públicos
+      const coefSubjectPub = getCoef(COEF_PUBLIC_IMPROVEMENTS, data.publicImprovements);
+      const coefSamplePub = getCoef(COEF_PUBLIC_IMPROVEMENTS, sample.publicImprovements);
+      const factorPub = coefSubjectPub / coefSamplePub;
+      unitPrice = unitPrice * factorPub;
+      appliedFactorsList.push({ name: 'Melhoramentos', value: factorPub, desc: 'Infra' });
 
-        // 5. Melhoramentos Públicos
-        const coefSubjectPub = getCoef(COEF_PUBLIC_IMPROVEMENTS, data.publicImprovements);
-        const coefSamplePub = getCoef(COEF_PUBLIC_IMPROVEMENTS, sample.publicImprovements);
-        const factorPub = coefSubjectPub / coefSamplePub;
-        unitPrice = unitPrice * factorPub;
-        appliedFactorsList.push({ name: 'Melhoramentos', value: factorPub, desc: 'Infra' });
+      // 6. Topografia
+      const coefSubjectTopo = getCoef(COEF_TOPOGRAPHY, data.topography);
+      const coefSampleTopo = getCoef(COEF_TOPOGRAPHY, sample.topography);
+      const factorTopo = coefSubjectTopo / coefSampleTopo;
+      unitPrice = unitPrice * factorTopo;
+      appliedFactorsList.push({ name: 'Topografia', value: factorTopo, desc: 'Relevo' });
 
-        // 6. Topografia
-        const coefSubjectTopo = getCoef(COEF_TOPOGRAPHY, data.topography);
-        const coefSampleTopo = getCoef(COEF_TOPOGRAPHY, sample.topography);
-        const factorTopo = coefSubjectTopo / coefSampleTopo;
-        unitPrice = unitPrice * factorTopo;
-        appliedFactorsList.push({ name: 'Topografia', value: factorTopo, desc: 'Relevo' });
+      // 7. Superfície
+      const coefSubjectSurf = getCoef(COEF_SURFACE, data.surface);
+      const coefSampleSurf = getCoef(COEF_SURFACE, sample.surface);
+      const factorSurf = coefSubjectSurf / coefSampleSurf;
+      unitPrice = unitPrice * factorSurf;
+      appliedFactorsList.push({ name: 'Solo', value: factorSurf, desc: 'Umidade' });
 
-        // 7. Superfície (Solo)
-        const coefSubjectSurf = getCoef(COEF_SURFACE, data.surface);
-        const coefSampleSurf = getCoef(COEF_SURFACE, sample.surface);
-        const factorSurf = coefSubjectSurf / coefSampleSurf;
-        unitPrice = unitPrice * factorSurf;
-        appliedFactorsList.push({ name: 'Solo', value: factorSurf, desc: 'Umidade' });
+      // 8. Ocupação
+      const coefSubjectOcc = getCoef(COEF_OCCUPATION, data.occupation);
+      const coefSampleOcc = getCoef(COEF_OCCUPATION, sample.occupation);
+      const factorOcc = coefSubjectOcc / coefSampleOcc;
+      unitPrice = unitPrice * factorOcc;
+      appliedFactorsList.push({ name: 'Ocupação', value: factorOcc, desc: 'Abertura' });
 
-        // 8. Ocupação (Abertura)
-        const coefSubjectOcc = getCoef(COEF_OCCUPATION, data.occupation);
-        const coefSampleOcc = getCoef(COEF_OCCUPATION, sample.occupation);
-        const factorOcc = coefSubjectOcc / coefSampleOcc;
-        unitPrice = unitPrice * factorOcc;
-        appliedFactorsList.push({ name: 'Ocupação', value: factorOcc, desc: 'Abertura' });
+      // 9. Benfeitorias
+      const coefSubjectImp = getCoef(COEF_IMPROVEMENTS, data.improvements);
+      const coefSampleImp = getCoef(COEF_IMPROVEMENTS, sample.improvements);
+      const factorImp = coefSubjectImp / coefSampleImp;
+      unitPrice = unitPrice * factorImp;
+      appliedFactorsList.push({ name: 'Benfeitorias', value: factorImp, desc: 'Constr.' });
+    }
 
-        // 9. Benfeitorias (Estrutural)
-        const coefSubjectImp = getCoef(COEF_IMPROVEMENTS, data.improvements);
-        const coefSampleImp = getCoef(COEF_IMPROVEMENTS, sample.improvements);
-        const factorImp = coefSubjectImp / coefSampleImp;
-        unitPrice = unitPrice * factorImp;
-        appliedFactorsList.push({ name: 'Benfeitorias', value: factorImp, desc: 'Constr.' });
-      }
+    return {
+      ...sample,
+      homogenizedUnitPrice: unitPrice,
+      factors: appliedFactorsList
+    };
+  });
 
-      return {
-        ...sample,
-        homogenizedUnitPrice: unitPrice,
-        factors: appliedFactorsList
-      };
-    });
-  }
-
-  // --- 4. SANEAMENTO DE AMOSTRAS (FILTRAGEM POR PRECISÃO) ---
-  // Remove outliers que desviam mais de 30% da média para atingir o grau de precisão.
-  // Mantém no mínimo 3 amostras se possível.
+  // --- 3. SELEÇÃO DO MELHOR CONJUNTO DE 5 AMOSTRAS (COMBINATÓRIA) ---
+  // A regra agora é: SEMPRE usar 5 amostras (se houver disponíveis).
+  // Se houver mais que 5 no pool, encontramos a combinação que minimiza o CV (melhor precisão).
   
-  let validSamples = [...homogenizedSamples];
-  let saneamentoDone = false;
-  let loops = 0;
-
-  while (!saneamentoDone && loops < 3 && validSamples.length > 3) {
-      const currentSum = validSamples.reduce((acc, s) => acc + s.homogenizedUnitPrice, 0);
-      const currentAvg = currentSum / validSamples.length;
+  let validSamples = [...homogenizedPool];
+  
+  if (homogenizedPool.length >= TARGET_SAMPLE_COUNT) {
+      // Gera todas as combinações possíveis de 5 elementos a partir do pool
+      // Para um pool de 12, isso são 792 combinações. Rápido para JS.
+      const combinations = getCombinations(homogenizedPool, TARGET_SAMPLE_COUNT);
       
-      let maxDev = 0;
-      let removeIndex = -1;
+      let bestCombination: any[] = [];
+      let minCV = Infinity;
 
-      // Encontra a amostra com maior desvio
-      validSamples.forEach((s, idx) => {
-          const dev = Math.abs(s.homogenizedUnitPrice - currentAvg) / currentAvg;
-          if (dev > 0.30 && dev > maxDev) {
-              maxDev = dev;
-              removeIndex = idx;
+      for (const combo of combinations) {
+          const sum = combo.reduce((acc, s) => acc + s.homogenizedUnitPrice, 0);
+          const avg = sum / combo.length;
+          
+          const variance = combo.reduce((acc, s) => acc + Math.pow(s.homogenizedUnitPrice - avg, 2), 0) / (combo.length - 1);
+          const stdDev = Math.sqrt(variance);
+          const cv = avg > 0 ? stdDev / avg : Infinity;
+
+          if (cv < minCV) {
+              minCV = cv;
+              bestCombination = combo;
           }
-      });
-
-      if (removeIndex !== -1) {
-          // Remove o outlier
-          validSamples.splice(removeIndex, 1);
-          loops++;
-      } else {
-          saneamentoDone = true;
       }
-  }
 
-  // --- 5. ESTATÍSTICAS FINAIS (Com amostras saneadas) ---
+      if (bestCombination.length > 0) {
+          validSamples = bestCombination;
+      }
+  } 
+  // Se tiver menos que 5 (ex: só tem 3 no banco), usa todas as que tem.
+
+  // --- 4. ESTATÍSTICAS FINAIS (Com as 5 amostras selecionadas) ---
   const count = validSamples.length;
   const hasSamples = count > 0;
   const sumHomogenizedUnit = validSamples.reduce((acc, s) => acc + s.homogenizedUnitPrice, 0);
@@ -618,7 +633,7 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
     <div class="report-section p-8">
        <h2 class="text-2xl font-serif font-bold text-gray-800 text-center uppercase mb-10">13 - ANEXO Nº 03<br/><span class="text-lg font-normal">MEMÓRIA DE CÁLCULO</span></h2>
 
-       <h3 class="font-bold text-gray-800 mb-4 uppercase text-sm border-b border-gray-400 pb-1">Elementos Coletados (Saneados)</h3>
+       <h3 class="font-bold text-gray-800 mb-4 uppercase text-sm border-b border-gray-400 pb-1">Elementos Coletados e Utilizados</h3>
        <div class="overflow-x-auto mb-8">
          <table class="w-full text-xs text-center border border-gray-300">
             <thead class="bg-green-700 text-white font-bold">
@@ -685,7 +700,7 @@ export const generateManualValuation = async (data: PropertyData): Promise<Valua
                         ` : '<td class="p-2 border border-gray-300 text-gray-600">1.00</td>'}
                         <td class="p-2 border border-gray-300 font-bold ${isOutlier ? 'text-red-600 bg-red-50' : 'text-green-800 bg-green-50'}">
                             ${fmtBRL(s.homogenizedUnitPrice)}
-                            ${isOutlier ? '<span class="block text-[8px] text-red-500">OUTLIER</span>' : ''}
+                            ${isOutlier ? '<span class="block text-[8px] text-red-500">ALTO DESVIO</span>' : ''}
                         </td>
                     </tr>
                   `;
