@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import Layout from './components/Layout';
 import StepSelection from './components/StepSelection';
@@ -37,10 +38,25 @@ const App: React.FC = () => {
       
       setValuationResult(result);
       setCurrentStep(AppStep.RESULT);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
       const msg = error instanceof Error ? error.message : "Erro desconhecido";
-      alert(`Erro ao processar a avaliação: ${msg}\n\nTente novamente ou verifique os dados de entrada.`);
+      
+      if (msg.includes("API_KEY_MISSING")) {
+        alert(
+          "ERRO DE CONFIGURAÇÃO DA CHAVE API\n\n" +
+          "O sistema não conseguiu ler a Chave de API das variáveis de ambiente (comum em deploys estáticos).\n\n" +
+          "SOLUÇÃO RÁPIDA (FAÇA ISSO AGORA):\n" +
+          "1. Pressione F12 para abrir o Console do navegador.\n" +
+          "2. Digite ou cole o comando abaixo e aperte Enter:\n\n" +
+          "localStorage.setItem('bandeira_agro_api_key', 'SUA-CHAVE-AQUI')\n\n" +
+          "3. Substitua 'SUA-CHAVE-AQUI' pela sua chave real AIza...\n" +
+          "4. Recarregue a página e tente novamente."
+        );
+      } else {
+        alert(`Erro ao processar a avaliação: ${msg}\n\nTente novamente ou verifique os dados de entrada.`);
+      }
+      
       setCurrentStep(AppStep.FORM);
     }
   };

@@ -2,9 +2,22 @@
 import { GoogleGenAI } from "@google/genai";
 import { PropertyData, PropertyType, MarketSample } from "../types";
 
-// Helper para obter a chave de API de forma robusta (Vite, Next, ou Node)
+// Chave para fallback local (caso variáveis de ambiente falhem em static deploy)
+const LOCAL_STORAGE_KEY_NAME = 'bandeira_agro_api_key';
+
+// Helper para obter a chave de API de forma robusta
 const getApiKey = (): string | undefined => {
-  // 1. Tenta padrão VITE (mais comum para React Apps modernos/Vercel)
+  // 1. Tenta LocalStorage (Salva-vidas para ambientes estáticos/sem build)
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const localKey = localStorage.getItem(LOCAL_STORAGE_KEY_NAME);
+      if (localKey) return localKey;
+    }
+  } catch (e) {
+    // Ignora erro de acesso ao localStorage
+  }
+
+  // 2. Tenta padrão VITE (mais comum para React Apps modernos/Vercel)
   try {
     // @ts-ignore
     if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
@@ -15,7 +28,7 @@ const getApiKey = (): string | undefined => {
     // Ignora erro se import.meta não existir
   }
 
-  // 2. Tenta process.env (Node.js ou Webpack com polyfill)
+  // 3. Tenta process.env (Node.js ou Webpack com polyfill)
   try {
     if (typeof process !== 'undefined' && process.env) {
       // Tenta variações comuns
@@ -73,8 +86,8 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
   const apiKey = getApiKey();
 
   if (!apiKey) {
-    console.error("FATAL: Nenhuma API KEY encontrada (VITE_API_KEY ou API_KEY).");
-    throw new Error("Chave de API não configurada. Configure a variável de ambiente VITE_API_KEY no seu servidor (Vercel/Netlify) ou arquivo .env local.");
+    console.error("FATAL: Nenhuma API KEY encontrada (LocalStorage, VITE_API_KEY ou API_KEY).");
+    throw new Error("API_KEY_MISSING");
   }
 
   const ai = new GoogleGenAI({ apiKey });
