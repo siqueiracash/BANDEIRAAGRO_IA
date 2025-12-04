@@ -116,6 +116,13 @@ const calculateSimilarity = (target: PropertyData, sample: MarketSample): number
     if (sample.state === target.state) score += 100;
   }
 
+  // 1.1 BAIRRO (Peso: 800) - Critério crucial para urbanos
+  // Aumentado peso para garantir que amostras no mesmo bairro tenham prioridade sobre áreas semelhantes em bairros diferentes
+  if (target.neighborhood && sample.neighborhood && 
+      target.neighborhood.trim().toLowerCase() === sample.neighborhood.trim().toLowerCase()) {
+    score += 800;
+  }
+
   // 2. TIPO E ATIVIDADE (Peso Máximo: 500)
   const isRural = target.type === PropertyType.RURAL;
   const targetSub = isRural ? target.ruralActivity : target.urbanSubType;
@@ -125,13 +132,13 @@ const calculateSimilarity = (target: PropertyData, sample: MarketSample): number
     score += 500;
   }
 
-  // 3. ÁREA TOTAL (Peso Máximo: 300)
-  // Quanto mais próxima a área, maior a pontuação.
-  // Cálculo: 300 * (Menor Área / Maior Área)
+  // 3. ÁREA TOTAL (Peso Máximo: 200 - Reduzido de 300)
+  // Reduzimos ligeiramente o peso da área para que a localização (Bairro) tenha preponderância.
+  // Cálculo: 200 * (Menor Área / Maior Área)
   const minArea = Math.min(target.areaTotal, sample.areaTotal);
   const maxArea = Math.max(target.areaTotal, sample.areaTotal);
   const areaRatio = maxArea > 0 ? (minArea / maxArea) : 0;
-  score += (areaRatio * 300);
+  score += (areaRatio * 200);
 
   // 4. CARACTERÍSTICAS ESPECÍFICAS (Peso Máximo: 200)
   if (isRural) {
