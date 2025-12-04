@@ -150,7 +150,7 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
     2. Extraia o Preço, Área Total, Quartos, Banheiros, Vagas, Endereço e Link (URL).
     3. Se não encontrar o número exato de quartos/vagas, aproxime ou deixe 0.
     4. O "source" deve ser o nome do portal (ex: VivaReal).
-    5. O "url" deve ser o link direto para o anúncio encontrado.
+    5. O "url" deve ser o link direto para o anúncio encontrado. **IMPORTANTE: Forneça a URL completa (http...). Não use links internos do tipo /grounding-api-redirect.**
 
     SAÍDA OBRIGATÓRIA:
     Retorne APENAS um array JSON válido contendo os dados. NÃO use formatação Markdown.
@@ -229,25 +229,40 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
     }
 
     const samples: MarketSample[] = rawSamples.map((s: any, index: number) => {
-      // Lógica de "Cura" do Link (Healing)
-      let finalUrl = s.url || '';
-      
-      // Se o link parece quebrado (tem reticências) ou vazio, tentamos achar um melhor no metadata
+      // 1. SANITIZAÇÃO RIGOROSA DO JSON URL
+      let jsonUrl = s.url || '';
+      // Se for link relativo ou de redirecionamento interno do Google (alucinação comum), descartamos.
+      if (jsonUrl.startsWith('/') || jsonUrl.includes('grounding-api-redirect')) {
+          jsonUrl = '';
+      }
+
+      // 2. Lógica de "Cura" do Link (Healing)
+      let finalUrl = jsonUrl;
       const isBroken = !finalUrl || finalUrl.includes('...') || !finalUrl.startsWith('http');
       
       if (realLinks.length > 0) {
         // Tentativa 1: Busca um link real que contenha o nome do portal (source)
         const sourceName = (s.source || '').toLowerCase().replace(/\s/g, '');
-        const matchingLink = realLinks.find(link => link.toLowerCase().includes(sourceName));
+        // Busca um link que contenha o nome do portal E não seja uma busca genérica do Google
+        const matchingLink = realLinks.find(link => 
+            link.toLowerCase().includes(sourceName) && 
+            !link.includes('google.com/search')
+        );
         
         if (isBroken && matchingLink) {
            finalUrl = matchingLink;
         } 
         // Tentativa 2: Se não achou por nome, e o índice existe no array de links reais, usa o correspondente
-        // (Muitas vezes a IA gera os itens na mesma ordem dos resultados da busca)
         else if (isBroken && index < realLinks.length) {
            finalUrl = realLinks[index];
         }
+      }
+
+      // 3. FALLBACK DE SEGURANÇA (Se ainda não tem link válido)
+      // Gera um link de pesquisa do Google para o usuário encontrar o imóvel
+      if (!finalUrl || !finalUrl.startsWith('http')) {
+          const query = encodeURIComponent(`${s.urbanSubType || 'Imóvel'} ${s.title || ''} ${s.address || ''} ${data.city}`);
+          finalUrl = `https://www.google.com/search?q=${query}`;
       }
 
       return {
@@ -264,7 +279,7 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
         pricePerUnit: (typeof s.price === 'number' && typeof s.areaTotal === 'number') ? s.price / s.areaTotal : 0,
         date: new Date().toISOString(),
         source: s.source || 'Pesquisa Web',
-        url: finalUrl, // Usa a URL corrigida
+        url: finalUrl, // Usa a URL corrigida/sanitizada
         urbanSubType: data.urbanSubType,
         bedrooms: s.bedrooms || 0,
         bathrooms: s.bathrooms || 0,
