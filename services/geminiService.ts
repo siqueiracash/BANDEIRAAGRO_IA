@@ -190,6 +190,19 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
 
     console.log("Gemini Response Raw:", response.text);
 
+    // --- CORREÇÃO DE LINKS VIA GROUNDING METADATA ---
+    // A IA muitas vezes alucina links no texto JSON, mas os links reais estão no metadata.
+    // Vamos extrair os links REAIS retornados pelo Google Search.
+    const realLinks: string[] = [];
+    if (response.candidates && response.candidates[0]?.groundingMetadata?.groundingChunks) {
+      response.candidates[0].groundingMetadata.groundingChunks.forEach((chunk: any) => {
+        if (chunk.web?.uri) {
+          realLinks.push(chunk.web.uri);
+        }
+      });
+    }
+    console.log("Links reais encontrados pelo Google:", realLinks);
+
     let text = response.text || "[]";
     // Limpeza agressiva para garantir JSON puro
     text = text.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -215,27 +228,50 @@ export const findUrbanSamples = async (data: PropertyData): Promise<MarketSample
         return [];
     }
 
-    const samples: MarketSample[] = rawSamples.map((s: any, index: number) => ({
-      id: `ai-sample-${Date.now()}-${index}`,
-      type: PropertyType.URBAN,
-      title: s.title || `${data.urbanSubType} em ${data.city}`,
-      address: s.address || (s.neighborhood ? `${s.neighborhood}, ${data.city}` : data.city),
-      city: data.city,
-      state: data.state,
-      neighborhood: s.neighborhood || data.neighborhood, // Tenta pegar o bairro que a IA achou
-      price: typeof s.price === 'string' ? parseFloat(s.price.replace(/[^0-9.]/g, '')) : Number(s.price),
-      areaTotal: typeof s.areaTotal === 'string' ? parseFloat(s.areaTotal.replace(/[^0-9.]/g, '')) : Number(s.areaTotal),
-      areaBuilt: s.areaTotal, 
-      pricePerUnit: (typeof s.price === 'number' && typeof s.areaTotal === 'number') ? s.price / s.areaTotal : 0,
-      date: new Date().toISOString(),
-      source: s.source || 'Pesquisa Web',
-      url: s.url || '',
-      urbanSubType: data.urbanSubType,
-      bedrooms: s.bedrooms || 0,
-      bathrooms: s.bathrooms || 0,
-      parking: s.parking || 0,
-      conservationState: 'Bom' 
-    }));
+    const samples: MarketSample[] = rawSamples.map((s: any, index: number) => {
+      // Lógica de "Cura" do Link (Healing)
+      let finalUrl = s.url || '';
+      
+      // Se o link parece quebrado (tem reticências) ou vazio, tentamos achar um melhor no metadata
+      const isBroken = !finalUrl || finalUrl.includes('...') || !finalUrl.startsWith('http');
+      
+      if (realLinks.length > 0) {
+        // Tentativa 1: Busca um link real que contenha o nome do portal (source)
+        const sourceName = (s.source || '').toLowerCase().replace(/\s/g, '');
+        const matchingLink = realLinks.find(link => link.toLowerCase().includes(sourceName));
+        
+        if (isBroken && matchingLink) {
+           finalUrl = matchingLink;
+        } 
+        // Tentativa 2: Se não achou por nome, e o índice existe no array de links reais, usa o correspondente
+        // (Muitas vezes a IA gera os itens na mesma ordem dos resultados da busca)
+        else if (isBroken && index < realLinks.length) {
+           finalUrl = realLinks[index];
+        }
+      }
+
+      return {
+        id: `ai-sample-${Date.now()}-${index}`,
+        type: PropertyType.URBAN,
+        title: s.title || `${data.urbanSubType} em ${data.city}`,
+        address: s.address || (s.neighborhood ? `${s.neighborhood}, ${data.city}` : data.city),
+        city: data.city,
+        state: data.state,
+        neighborhood: s.neighborhood || data.neighborhood, // Tenta pegar o bairro que a IA achou
+        price: typeof s.price === 'string' ? parseFloat(s.price.replace(/[^0-9.]/g, '')) : Number(s.price),
+        areaTotal: typeof s.areaTotal === 'string' ? parseFloat(s.areaTotal.replace(/[^0-9.]/g, '')) : Number(s.areaTotal),
+        areaBuilt: s.areaTotal, 
+        pricePerUnit: (typeof s.price === 'number' && typeof s.areaTotal === 'number') ? s.price / s.areaTotal : 0,
+        date: new Date().toISOString(),
+        source: s.source || 'Pesquisa Web',
+        url: finalUrl, // Usa a URL corrigida
+        urbanSubType: data.urbanSubType,
+        bedrooms: s.bedrooms || 0,
+        bathrooms: s.bathrooms || 0,
+        parking: s.parking || 0,
+        conservationState: 'Bom' 
+      };
+    });
 
     // Filtragem de segurança: Remover amostras com preço ou área zerados
     return samples.filter(s => s.price > 0 && s.areaTotal > 0);
