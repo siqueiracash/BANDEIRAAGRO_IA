@@ -16,13 +16,14 @@ const ReportScreen: React.FC<ReportScreenProps> = ({ data, onReset, onReview }) 
         @media print {
           @page { 
             margin: 0; 
-            size: A4; 
+            size: A4 portrait; 
           }
           
           html, body { 
             margin: 0 !important; 
             padding: 0 !important; 
             background: white !important;
+            height: auto !important;
             -webkit-print-color-adjust: exact;
           }
 
@@ -31,24 +32,19 @@ const ReportScreen: React.FC<ReportScreenProps> = ({ data, onReset, onReview }) 
           .report-page { 
             display: flex !important;
             page-break-after: always !important;
+            break-after: page !important;
             box-shadow: none !important;
             width: 210mm !important;
             height: 297mm !important;
             margin: 0 !important;
             padding: 20mm !important;
-            padding-bottom: 45mm !important; /* Margem de rodapé para tabelas */
             overflow: hidden !important;
             position: relative !important;
           }
           
           .report-page.page-start-new {
             page-break-before: always !important;
-          }
-
-          .report-page.h-auto {
-             height: auto !important;
-             min-height: 297mm !important;
-             page-break-after: auto !important;
+            break-before: page !important;
           }
 
           #root, main { 
@@ -57,6 +53,12 @@ const ReportScreen: React.FC<ReportScreenProps> = ({ data, onReset, onReview }) 
             padding: 0 !important; 
             margin: 0 !important; 
             display: block !important;
+          }
+
+          /* Evita a criação de uma página extra em branco no final */
+          .report-wrapper > div:last-child {
+            page-break-after: avoid !important;
+            break-after: avoid !important;
           }
         }
 
