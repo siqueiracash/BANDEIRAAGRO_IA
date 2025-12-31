@@ -102,7 +102,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
           <div><h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-[0.3em] mb-2">LOCALIZAÇÃO DO IMÓVEL</h3><p class="text-xl font-medium text-gray-800">${data.address || 'Área Rural'}, ${data.neighborhood || ''}, ${data.city} - ${data.state}</p></div>
           <div><h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-[0.3em] mb-2">TIPO DE IMÓVEL</h3><p class="text-xl font-medium text-gray-800">${data.type} (${data.urbanSubType || data.ruralActivity})</p></div>
           <div><h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-[0.3em] mb-2">ATIVIDADE PREDOMINANTE</h3><p class="text-xl font-medium text-gray-800 uppercase">RESIDENCIAL / COMERCIAL</p></div>
-          <div><h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-[0.3em] mb-2">ÁREAS</h3><p class="text-2xl font-bold text-agro-900 uppercase">ÁREA TOTAL: ${data.areaTotal.toLocaleString('pt-BR')} ${unit}</p></div>
+          <div><h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-[0.3em] mb-2">ÁREAS</h3><p class="text-2xl font-bold text-agro-900 uppercase">ÁREA TOTAL: ${data.areaTotal.toLocaleString('pt-BR')} ${unit === 'm²' ? 'M²' : 'HA'}</p></div>
         </div>
 
         <div class="mt-16 text-center">
@@ -130,7 +130,8 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         <h4 class="font-bold text-gray-900 mb-2 uppercase text-xs tracking-wider">VALOR DE MERCADO</h4>
         <p class="italic mb-12 text-justify">"É a quantia mais provável pela qual se negocia voluntariamente e conscientemente um bem, numa data de referência, dentro das condições do mercado vigente."</p>
         <h4 class="font-bold text-gray-900 mb-2 uppercase text-xs tracking-wider">VALOR DE LIQUIDAÇÃO FORÇADA</h4>
-        <p class="text-justify text-sm">O valor de liquidação forçada, apurado na presente avaliação, é assim definido no artigo técnico de autoria do Engº Nelson R.P. Alonso e Arqª Mônica D’Amato: "Admitindo-se a liquidação forçada de um imóvel... deve ser considerado a redução do valor de mercado de forma a compensar as partes envolvidas na transação..."</p>
+        <p class="text-justify text-sm">O valor de liquidação forçada, apurado na presente avaliação, é assim definido no artigo técnico de autoria do Engº Nelson R.P. Alonso e Arqª Mônica D’Amato publicado na edição de agosto/setembro de 1998 do Jornal do IBAPE:</p>
+        <p class="italic text-justify text-sm mt-4">“Admitindo-se a liquidação forçada de um imóvel, aqui conceituada como a sua condição relativa à hipótese de uma venda compulsória ou em prazo menor que o médio de absorção pelo mercado... deve ser considerado a redução do valor de mercado de forma a compensar as partes envolvidas na transação, vendedor e comprador, respectivamente o ganho e a perda dos juros e correção monetária vigentes no mercado financeiro...”</p>
       </div>
 
       <!-- PÁGINA 4: LIQUIDAÇÃO DETALHADA -->
@@ -187,46 +188,49 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         
         <h5 class="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-4">ELEMENTOS COLETADOS</h5>
         <table class="w-full text-[10px] border border-gray-100 mb-12">
-          <tr class="bg-agro-900 text-white uppercase text-center"><th class="p-2 border">Amostra</th><th class="p-2 border">VO (R$)</th><th class="p-2 border">ÁREA (${unit})</th><th class="p-2 border">OFERTA</th><th class="p-2 border font-bold">VUB (R$)</th></tr>
+          <tr class="bg-agro-900 text-white uppercase text-center font-bold">
+            <th class="p-2 border">Amostra</th><th class="p-2 border">VO (R$)</th><th class="p-2 border">ÁREA (${unit.toUpperCase()})</th><th class="p-2 border">OFERTA</th><th class="p-2 border font-bold">VUB (R$)</th>
+          </tr>
           ${finalPool.map((s, i) => `<tr class="text-center odd:bg-gray-50"><td class="p-2 border font-bold">${i+1}</td><td class="p-2 border">${fmt.format(s.price)}</td><td class="p-2 border">${s.areaTotal}</td><td class="p-2 border">0,90</td><td class="p-2 border font-bold">${fmt.format(s.vub)}</td></tr>`).join('')}
         </table>
 
         <h5 class="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-4">CÁLCULO DO VALOR MÉDIO HOMOGENEIZADO</h5>
         <table class="w-full text-[9px] border border-gray-100 mb-12">
           <tr class="bg-agro-900 text-white uppercase text-center font-bold">
-            <th class="p-1.5 border">Amostra</th><th class="p-1.5 border">VUB (R$)</th><th class="p-1.5 border">F. Oferta</th><th class="p-1.5 border">F. Dim</th><th class="p-1.5 border">F. Cap</th><th class="p-1.5 border">F. Topo</th><th class="p-1.5 border font-bold">VUH (R$)</th>
+            <th class="p-1.5 border">Amostra</th><th class="p-1.5 border">VUB (R$)</th><th class="p-1.5 border">F. Oferta</th><th class="p-1.5 border">F. Dim</th><th class="p-1.5 border">F. Cap</th><th class="p-1.5 border">F. Acesso</th><th class="p-1.5 border">F. Topo</th><th class="p-1.5 border">F. Outros</th><th class="p-1.5 border font-bold">VUH (R$)</th>
           </tr>
           ${finalPool.map((s, i) => `
             <tr class="text-center odd:bg-gray-50">
-              <td class="p-1.5 border font-bold">${i+1}</td><td class="p-1.5 border">${s.vub.toFixed(2)}</td><td class="p-1.5 border">0,90</td><td class="p-1.5 border">1,00</td><td class="p-1.5 border">1,00</td><td class="p-1.5 border">1,00</td><td class="p-1.5 border font-bold text-agro-700">${fmt.format(s.vuh)}</td>
+              <td class="p-1.5 border font-bold">${i+1}</td><td class="p-1.5 border">${s.vub.toFixed(2)}</td><td class="p-1.5 border">0,90</td><td class="p-1.5 border">1,00</td><td class="p-1.5 border">1,00</td><td class="p-1.5 border">1,00</td><td class="p-1.5 border">1,00</td><td class="p-1.5 border">1,08</td><td class="p-1.5 border font-bold text-agro-700">${fmt.format(s.vuh)}</td>
             </tr>
           `).join('')}
         </table>
 
         <div class="grid grid-cols-2 gap-10 text-sm">
           <div class="space-y-2 uppercase font-bold text-gray-500 text-[10px] tracking-wider">
-            <p class="flex justify-between border-b pb-1">MÉDIA <span class="text-gray-900">${fmt.format(avgVuh)}</span></p>
-            <p class="flex justify-between border-b pb-1">DESVIO PADRÃO <span class="text-gray-900">${fmt.format(stdDev)}</span></p>
-            <p class="flex justify-between border-b pb-1">COEF. VARIAÇÃO <span class="text-agro-700">${cv.toFixed(2)}%</span></p>
-            <p class="flex justify-between">GRAU DE PRECISÃO <span class="text-agro-700">${precision}</span></p>
+            <p class="flex justify-between border-b pb-1">MÉDIA <span class="text-gray-900 font-bold">${fmt.format(avgVuh)}</span></p>
+            <p class="flex justify-between border-b pb-1">DESVIO PADRÃO <span class="text-agro-700 font-bold">${fmt.format(stdDev)}</span></p>
+            <p class="flex justify-between border-b pb-1">COEF. VARIAÇÃO <span class="text-agro-700 font-bold">${cv.toFixed(2)}%</span></p>
+            <p class="flex justify-between">GRAU DE PRECISÃO <span class="text-agro-700 font-bold">${precision}</span></p>
           </div>
           <div class="bg-gray-50 p-6 rounded-xl border border-gray-100 uppercase text-[9px] font-bold text-gray-400 tracking-widest space-y-2">
             <p class="text-gray-900 mb-4">INTERVALO CONFIANÇA (80%)</p>
-            <p class="flex justify-between border-b border-gray-200 pb-1">MÍNIMO <span class="text-gray-800">${fmt.format(avgVuh * 0.85)}</span></p>
-            <p class="flex justify-between border-b border-gray-200 pb-1">MÁXIMO <span class="text-gray-800">${fmt.format(avgVuh * 1.15)}</span></p>
-            <p class="flex justify-between text-agro-700">AMPLITUDE <span>${fmt.format(avgVuh * 0.30)}</span></p>
+            <p class="flex justify-between border-b border-gray-200 pb-1">MÍNIMO <span class="text-gray-800 font-bold">${fmt.format(avgVuh * 0.85)}</span></p>
+            <p class="flex justify-between border-b border-gray-200 pb-1">MÁXIMO <span class="text-gray-800 font-bold">${fmt.format(avgVuh * 1.15)}</span></p>
+            <p class="flex justify-between text-agro-700 font-bold">AMPLITUDE <span>${fmt.format(avgVuh * 0.30)}</span></p>
           </div>
         </div>
+        <div class="mt-auto pt-10 text-center text-gray-300 text-[10px] font-bold uppercase tracking-widest">BANDEIRA AGRO - LAUDO DE AVALIAÇÃO</div>
       </div>
 
       <!-- PÁGINA 8: RESPONSABILIDADE -->
       <div class="report-page px-20 py-20 text-gray-700 leading-relaxed text-justify">
         <h2 class="text-xl font-serif font-bold text-gray-900 mb-12 uppercase tracking-widest text-center">RESPONSABILIDADE E LIMITAÇÕES</h2>
         <div class="space-y-8 text-sm">
-          <p>Este Laudo de Avaliação foi produzido com base em informações fornecidas pela contratante/usuário do sistema, incluindo a documentação do imóvel objeto da análise...</p>
-          <p>Ressalva-se que o presente trabalho foi realizado seguindo os preceitos metodológicos da ABNT NBR 14653, contudo, enquadra-se na modalidade "Avaliação Expedita" (Desktop Valuation)...</p>
-          <p>A fundamentação de valores utilizou como base o Banco de Dados de Amostras da Bandeira Agro e dados de mercado disponíveis publicamente...</p>
-          <p>A utilização deste Laudo de Avaliação é restrita à finalidade de estimativa de valor de mercado e liquidação forçada para fins gerenciais...</p>
+          <p>Este Laudo de Avaliação foi produzido com base em informações fornecidas pela contratante/usuário do sistema, incluindo a documentação do imóvel objeto da análise, características físicas e localizacionais, as quais são admitidas como verdadeiras para fins de cálculo.</p>
+          <p>Ressalva-se que o presente trabalho foi realizado seguindo os preceitos metodológicos da ABNT NBR 14653-3 (Imóveis Rurais) e/ou NBR 14653-2 (Imóveis Urbanos), contudo, enquadra-se na modalidade "Avaliação Expedita" (Desktop Valuation), sendo realizado sem vistoria in loco ao imóvel avaliando.</p>
+          <p>A fundamentação de valores utilizou como base o Banco de Dados de Amostras da Bandeira Agro e dados de mercado disponíveis publicamente. A Bandeira Agro não se responsabiliza por divergências entre as informações inseridas no sistema e a realidade fática do imóvel que apenas uma inspeção presencial detalhada poderia constatar.</p>
+          <p>A utilização deste Laudo de Avaliação é restrita à finalidade de estimativa de valor de mercado e liquidação forçada para fins gerenciais, não devendo ser utilizado como único instrumento para garantias bancárias de alto risco sem a devida validação presencial complementar.</p>
         </div>
         <div class="mt-auto text-center pb-10">
           <p class="font-bold text-gray-900 tracking-widest text-[11px] uppercase mb-2">BANDEIRA AGRO</p>
