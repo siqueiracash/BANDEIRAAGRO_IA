@@ -3,17 +3,23 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { PropertyData, MarketSample, PropertyType } from "../types";
 
 /**
- * Busca Amostras com Integração Profunda em Portais utilizando o SDK Gemini.
- * A instância é criada dentro da função para garantir o acesso ao process.env.API_KEY mais atual.
+ * Este serviço atua como a lógica que residiria em um Route Handler (Backend).
+ * Ele centraliza a comunicação com a API Gemini de forma segura.
+ */
+
+const getAIClient = () => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    throw new Error("A chave de API não foi configurada no servidor (API_KEY_REQUIRED).");
+  }
+  return new GoogleGenAI({ apiKey });
+};
+
+/**
+ * Busca Amostras de Mercado (Equivalente ao seu endpoint POST /api/find-samples)
  */
 export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = false): Promise<MarketSample[]> => {
-  const apiKey = process.env.API_KEY;
-  
-  if (!apiKey) {
-    throw new Error("API_KEY_REQUIRED");
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = getAIClient();
   
   const locationContext = isDeepSearch 
     ? `${data.city} ${data.state} (bairros limítrofes ao ${data.neighborhood || 'Centro'})`
@@ -81,22 +87,19 @@ export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = fal
       conservationState: 'Bom'
     })).filter((s: any) => s.price > 10000);
   } catch (error: any) {
-    console.error("Erro na inteligência de mercado:", error);
+    console.error("Erro na camada de serviço (Backend Simulator):", error);
     throw error;
   }
 };
 
 /**
- * Extrai dados técnicos de uma URL de anúncio via IA
+ * Extrai dados técnicos de uma URL (Equivalente ao seu endpoint POST /api/extract-url)
  */
 export const extractSampleFromUrl = async (url: string, type: PropertyType): Promise<Partial<MarketSample> | null> => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) return null;
-
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = getAIClient();
   
   try {
-    const prompt = `Analise detalhadamente o anúncio deste link: ${url}. Extraia metadados técnicos específicos para um imóvel do tipo ${type}.`;
+    const prompt = `Analise o anúncio: ${url}. Extraia metadados técnicos para o tipo ${type}.`;
     
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',

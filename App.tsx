@@ -18,7 +18,7 @@ const App: React.FC = () => {
   const [valuationResult, setValuationResult] = useState<ValuationResult | null>(null);
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
 
-  // Verificação inicial de chave silenciosa
+  // Verificação inicial segura
   useEffect(() => {
     const checkKey = async () => {
       try {
@@ -26,7 +26,7 @@ const App: React.FC = () => {
           const selected = await (window as any).aistudio.hasSelectedApiKey();
           setHasApiKey(selected);
         } else {
-          // Em Vercel/Standalone, se a env existir, consideramos como ok
+          // Em produção (Vercel), a chave virá do process.env no servidor
           setHasApiKey(!!process.env.API_KEY);
         }
       } catch (e) {
@@ -46,6 +46,7 @@ const App: React.FC = () => {
     setCurrentStep(AppStep.LOADING);
     
     try {
+      // Chamada para o nosso Valuation Service que agora consome o Bridge Seguro
       let result;
       if (data.type === PropertyType.RURAL) {
         result = await generateManualValuation(data);
@@ -56,26 +57,17 @@ const App: React.FC = () => {
       setValuationResult(result);
       setCurrentStep(AppStep.RESULT);
     } catch (error: any) {
-      console.error("Valuation Error:", error);
+      console.error("Erro na Requisição:", error);
       const msg = error.message || String(error);
       
-      // MUDANÇA CRUCIAL: Só resetamos o estado da chave se for um erro fatal de autenticação.
-      // Erros de busca, rede ou amostras não devem voltar para a tela verde.
-      const isAuthError = 
-        msg.includes("Requested entity was not found") || 
-        msg.includes("API_KEY_REQUIRED") || 
-        msg.includes("401") || 
-        msg.includes("403");
+      // Tratamento de erro de autenticação vindo do simulador de backend
+      const isAuthError = msg.includes("API_KEY_REQUIRED") || msg.includes("401") || msg.includes("403");
 
       if (isAuthError) {
         setHasApiKey(false);
         setCurrentStep(AppStep.FORM);
-        alert("Sua conexão de IA expirou ou a chave é inválida. Por favor, reative a Engine.");
-      } else if (msg.includes("AMOSTRAS_INSUFICIENTES")) {
-        alert("A IA não localizou amostras suficientes nesta região exata. Tente ampliar a área de busca ou mudar o bairro.");
-        setCurrentStep(AppStep.FORM);
+        alert("A autenticação com o motor de IA falhou. Por favor, verifique a chave no servidor.");
       } else {
-        // Erro genérico mantém o usuário no formulário
         alert(`Ocorreu um problema no processamento: ${msg}`);
         setCurrentStep(AppStep.FORM);
       }
@@ -94,7 +86,6 @@ const App: React.FC = () => {
     setPropertyData(INITIAL_PROPERTY_DATA);
   };
 
-  // Se estiver verificando a chave, não renderiza nada para evitar "flicker"
   if (hasApiKey === null) return null;
 
   return (
