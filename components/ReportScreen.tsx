@@ -39,12 +39,16 @@ const ReportScreen: React.FC<ReportScreenProps> = ({ data, onReset, onReview }) 
             padding: 0 !important; 
             width: 100% !important; 
             max-width: none !important; 
+            background: white !important;
+          }
+          .report-wrapper {
+            background: white !important;
           }
         }
         .report-content h1, .report-content h2, .report-content h3 { font-family: 'Playfair Display', serif; }
       `}</style>
 
-      <div className="bg-gray-100 p-8 rounded-3xl border border-gray-200 print:bg-white print:p-0 print:rounded-none print:border-none report-container">
+      <div className="bg-gray-100 p-2 md:p-8 rounded-3xl border border-gray-200 print:bg-white print:p-0 print:rounded-none print:border-none report-container overflow-x-auto">
         <div 
           className="report-content"
           dangerouslySetInnerHTML={{ __html: data.reportText }} 
