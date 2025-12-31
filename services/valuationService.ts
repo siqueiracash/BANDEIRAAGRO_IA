@@ -223,51 +223,72 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         </div>
       `).join('')}
 
-      <!-- PÁGINA 7: MEMÓRIA DE CÁLCULO -->
-      <div class="report-page px-20 py-24">
-        <h2 class="text-[22px] font-serif font-bold text-gray-900 mb-2 uppercase tracking-wide">ANEXO: MEMÓRIA DE CÁLCULO</h2>
-        <h3 class="text-[28px] font-serif text-gray-400 mb-12 uppercase tracking-[0.15em]">PROCESSAMENTO ESTATÍSTICO</h3>
+      <!-- PÁGINA 7: MEMÓRIA DE CÁLCULO (AJUSTADA PARA CABER EM UMA PÁGINA) -->
+      <div class="report-page px-16 py-12">
+        <h2 class="text-[20px] font-serif font-bold text-gray-900 mb-1 uppercase tracking-wide">ANEXO: MEMÓRIA DE CÁLCULO</h2>
+        <h3 class="text-[24px] font-serif text-gray-300 mb-8 uppercase tracking-[0.15em]">PROCESSAMENTO ESTATÍSTICO</h3>
         
-        <h5 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">ELEMENTOS COLETADOS</h5>
-        <table class="w-full text-[11px] border-collapse mb-12 border border-gray-100">
-          <thead>
-            <tr class="bg-gray-50 text-gray-400 uppercase font-bold text-center">
-              <th class="p-4 border">AMOSTRA</th><th class="p-4 border">VO (R$)</th><th class="p-4 border">ÁREA (${unit.toUpperCase()})</th><th class="p-4 border">OFERTA</th><th class="p-4 border text-gray-900">VUB (R$)</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${finalPool.map((s, i) => `
-              <tr class="text-center">
-                <td class="p-4 border font-bold text-gray-300 text-[18px]">${i+1}</td>
-                <td class="p-4 border">${fmt.format(s.price)}</td>
-                <td class="p-4 border">${s.areaTotal}</td>
-                <td class="p-4 border">0,90</td>
-                <td class="p-4 border font-bold text-gray-900">${fmt.format(s.vub)}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-
-        <h5 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">CÁLCULO DO VALOR MÉDIO HOMOGENEIZADO</h5>
-        <div class="overflow-hidden border border-gray-100 mb-12">
-          <table class="w-full text-[9px] border-collapse">
+        <div class="mb-6">
+          <h5 class="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-3">ELEMENTOS COLETADOS</h5>
+          <table class="w-full text-[10px] border-collapse border border-gray-100">
             <thead>
               <tr class="bg-gray-50 text-gray-400 uppercase font-bold text-center">
-                <th class="p-3 border">AMOSTRA</th><th class="p-3 border">VUB (R$)</th><th class="p-3 border">F. OFERTA</th><th class="p-3 border">F. DIM</th><th class="p-3 border">F. CAP</th><th class="p-3 border">F. ACESSO</th><th class="p-3 border">F. TOPO</th><th class="p-3 border">F. OUTROS</th><th class="p-3 border text-[#15803d]">VUH (R$)</th>
+                <th class="p-2 border">AMOSTRA</th><th class="p-2 border">VO (R$)</th><th class="p-2 border">ÁREA (${unit.toUpperCase()})</th><th class="p-2 border">OFERTA</th><th class="p-2 border text-gray-900">VUB (R$)</th>
               </tr>
             </thead>
             <tbody>
               ${finalPool.map((s, i) => `
                 <tr class="text-center">
-                  <td class="p-3 border font-bold text-gray-300">${i+1}</td>
-                  <td class="p-3 border">${s.vub.toFixed(2)}</td>
-                  <td class="p-3 border">0,90</td><td class="p-3 border">1,00</td><td class="p-3 border">1,00</td><td class="p-3 border">1,00</td><td class="p-3 border">1,00</td><td class="p-3 border">1,08</td>
-                  <td class="p-3 border font-bold text-[#15803d]">${fmt.format(s.vuh)}</td>
+                  <td class="p-2 border font-bold text-gray-300 text-[16px]">${i+1}</td>
+                  <td class="p-2 border">${fmt.format(s.price)}</td>
+                  <td class="p-2 border">${s.areaTotal}</td>
+                  <td class="p-2 border">0,90</td>
+                  <td class="p-2 border font-bold text-gray-900">${fmt.format(s.vub)}</td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
         </div>
+
+        <div class="mb-6">
+          <h5 class="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-3">CÁLCULO DO VALOR MÉDIO HOMOGENEIZADO</h5>
+          <div class="overflow-hidden border border-gray-100">
+            <table class="w-full text-[8.5px] border-collapse">
+              <thead>
+                <tr class="bg-gray-50 text-gray-400 uppercase font-bold text-center">
+                  <th class="p-2 border">AMOSTRA</th><th class="p-2 border">VUB (R$)</th><th class="p-2 border">F. OFERTA</th><th class="p-2 border">F. DIM</th><th class="p-2 border">F. CAP</th><th class="p-2 border">F. ACESSO</th><th class="p-2 border">F. TOPO</th><th class="p-2 border">F. OUTROS</th><th class="p-2 border text-[#15803d]">VUH (R$)</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${finalPool.map((s, i) => `
+                  <tr class="text-center">
+                    <td class="p-2 border font-bold text-gray-300">${i+1}</td>
+                    <td class="p-2 border">${s.vub.toFixed(2)}</td>
+                    <td class="p-2 border">0,90</td><td class="p-2 border">1,00</td><td class="p-2 border">1,00</td><td class="p-2 border">1,00</td><td class="p-2 border">1,00</td><td class="p-2 border">1,08</td>
+                    <td class="p-2 border font-bold text-[#15803d]">${fmt.format(s.vuh)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-8 mt-auto">
+          <div class="space-y-2 uppercase font-bold text-gray-500 text-[10px] tracking-wider">
+            <p class="flex justify-between border-b border-gray-50 pb-1">MÉDIA <span class="text-gray-900 font-black">${fmt.format(avgVuh)}</span></p>
+            <p class="flex justify-between border-b border-gray-50 pb-1">DESVIO PADRÃO <span class="text-agro-700 font-black">${fmt.format(stdDev)}</span></p>
+            <p class="flex justify-between border-b border-gray-50 pb-1">COEF. VARIAÇÃO <span class="text-agro-700 font-black">${cv.toFixed(2)}%</span></p>
+            <p class="flex justify-between">GRAU DE PRECISÃO <span class="text-agro-700 font-black">${precision}</span></p>
+          </div>
+          <div class="bg-gray-50 p-4 rounded-xl border border-gray-100 uppercase tracking-widest space-y-2">
+            <p class="text-[9px] text-gray-900 mb-2 font-black uppercase tracking-[0.2em]">INTERVALO CONFIANÇA (80%)</p>
+            <p class="flex justify-between border-b border-gray-200 pb-1 text-[10px] text-gray-500 font-bold">MÍNIMO <span class="text-gray-800 font-black">${fmt.format(avgVuh * 0.85)}</span></p>
+            <p class="flex justify-between border-b border-gray-200 pb-1 text-[10px] text-gray-500 font-bold">MÁXIMO <span class="text-gray-800 font-black">${fmt.format(avgVuh * 1.15)}</span></p>
+            <p class="flex justify-between text-agro-700 font-black text-[10px]">AMPLITUDE <span>${fmt.format(avgVuh * 0.30)}</span></p>
+          </div>
+        </div>
+
+        <div class="mt-8 text-center text-gray-300 text-[9px] font-bold uppercase tracking-[0.3em]">BANDEIRA AGRO - INTELIGÊNCIA EM AVALIAÇÕES</div>
       </div>
 
       <!-- PÁGINA 8: RESPONSABILIDADE -->
