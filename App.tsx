@@ -22,22 +22,26 @@ const App: React.FC = () => {
   }, []);
 
   const checkApiKey = async () => {
-    // Se a chave já estiver no process.env, pula o setup
-    if (process.env.API_KEY) {
+    // 1. Verifica se a chave já está disponível no process.env (Vercel ou similar)
+    if (process.env.API_KEY && process.env.API_KEY !== 'undefined' && process.env.API_KEY !== '') {
       setCurrentStep(AppStep.SELECTION);
       return;
     }
 
-    // Caso contrário, verifica via helper do AI Studio se disponível
+    // 2. Verifica via helper do AI Studio
     if (window.aistudio) {
-      const hasKey = await window.aistudio.hasSelectedApiKey();
-      if (hasKey) {
-        setCurrentStep(AppStep.SELECTION);
-      } else {
+      try {
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        if (hasKey) {
+          setCurrentStep(AppStep.SELECTION);
+        } else {
+          setCurrentStep(AppStep.SETUP);
+        }
+      } catch (e) {
         setCurrentStep(AppStep.SETUP);
       }
     } else {
-      // Fora do AI Studio, assume que o usuário configurará via env ou prossegue
+      // Caso fora do AI Studio e sem chave, levamos para a seleção esperando que a chave apareça ou falhe graciosamente
       setCurrentStep(AppStep.SELECTION);
     }
   };
@@ -56,6 +60,14 @@ const App: React.FC = () => {
     setCurrentStep(AppStep.LOADING);
     
     try {
+      // Verificação de segurança pré-vôo
+      if (!process.env.API_KEY && window.aistudio) {
+         const hasKey = await window.aistudio.hasSelectedApiKey();
+         if (!hasKey) {
+           throw new Error("AUTH_REQUIRED");
+         }
+      }
+
       let result;
       if (data.type === PropertyType.RURAL) {
         result = await generateManualValuation(data);
@@ -66,17 +78,21 @@ const App: React.FC = () => {
       setValuationResult(result);
       setCurrentStep(AppStep.RESULT);
     } catch (error: any) {
-      console.error(error);
-      const msg = error instanceof Error ? error.message : "Erro desconhecido";
+      console.error("Valuation Error:", error);
+      const msg = error instanceof Error ? error.message : String(error);
       
-      if (msg.includes("Requested entity was not found")) {
-        alert("Sua chave de API expirou ou é inválida. Por favor, selecione-a novamente.");
+      // Tratamento de Erros de Autenticação / Chave
+      if (msg.includes("Requested entity was not found") || 
+          msg.includes("API_KEY_INVALID") || 
+          msg.includes("AUTH_REQUIRED") ||
+          msg.includes("API key not found")) {
+        alert("Sua conexão com o motor de IA precisa ser renovada. Por favor, ative sua chave novamente.");
         setCurrentStep(AppStep.SETUP);
       } else if (msg.includes("AMOSTRAS_INSUFICIENTES")) {
-        alert("Não encontramos amostras suficientes para uma avaliação segura neste local.");
+        alert("Não encontramos amostras suficientes para uma avaliação segura neste local. Tente outro bairro ou cidade.");
         setCurrentStep(AppStep.FORM);
       } else {
-        alert(`Erro ao processar a avaliação: ${msg}`);
+        alert(`Ocorreu um problema técnico: ${msg}`);
         setCurrentStep(AppStep.FORM);
       }
     }
