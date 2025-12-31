@@ -56,6 +56,8 @@ export interface MarketSample {
   date: string;
   source: string;
   url?: string; // Novo campo para link direto
+  // Fix: Added missing description property to support AdminDashboard editing and persistence
+  description?: string;
   
   // Campos Urbanos Específicos
   urbanSubType?: string;

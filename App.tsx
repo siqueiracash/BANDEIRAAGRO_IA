@@ -1,5 +1,4 @@
 
-
 import React, { useState } from 'react';
 import Layout from './components/Layout';
 import StepSelection from './components/StepSelection';
@@ -28,11 +27,11 @@ const App: React.FC = () => {
     
     try {
       let result;
-      // RURAL -> BANCO DE DADOS
+      // RURAL -> BANCO DE DADOS + BUSCA REGIONAL
       if (data.type === PropertyType.RURAL) {
         result = await generateManualValuation(data);
       } 
-      // URBANO -> INTELIGÊNCIA ARTIFICIAL (WEB SEARCH)
+      // URBANO -> INTELIGÊNCIA ARTIFICIAL (WEB SEARCH GROUNDING)
       else {
         result = await generateUrbanAutomatedValuation(data);
       }
@@ -43,51 +42,19 @@ const App: React.FC = () => {
       console.error(error);
       const msg = error instanceof Error ? error.message : "Erro desconhecido";
       
-      if (msg.includes("API_KEY_MISSING")) {
+      if (msg.includes("API_KEY") || msg.includes("403") || msg.includes("401")) {
         alert(
-          "CONFIGURAÇÃO DE API NECESSÁRIA\n\n" +
-          "O sistema não encontrou a chave da API. Se você configurou na Vercel:\n" +
-          "1. Ignore o aviso amarelo 'This key... might expose sensitive information' na Vercel. Ele é normal.\n" +
-          "2. Certifique-se que o nome da variável é VITE_API_KEY.\n" +
-          "3. Faça um novo Deploy no painel da Vercel para aplicar a mudança.\n\n" +
-          "SOLUÇÃO PALIATIVA (Se precisar usar AGORA):\n" +
-          "Abra o Console (F12) e digite:\n" +
-          "localStorage.setItem('bandeira_agro_api_key', 'SUA-CHAVE-AQUI')"
+          "ERRO DE AUTENTICAÇÃO\n\n" +
+          "Não foi possível conectar aos serviços de inteligência artificial da Bandeira Agro."
         );
-      } else if (msg.includes("INVALID_KEY_FORMAT")) {
+      } else if (msg.includes("AMOSTRAS_INSUFICIENTES")) {
         alert(
-            "CHAVE DE API INVÁLIDA\n\n" +
-            "A chave que você está usando NÃO é do Gemini/AI Studio. Você provavelmente pegou uma chave do Vertex AI ou Service Account (começando com AQ...).\n\n" +
-            "SOLUÇÃO:\n" +
-            "1. Acesse https://aistudiocdn.com/app/apikey\n" +
-            "2. Crie uma nova chave. Ela DEVE começar com 'AIza'.\n" +
-            "3. Atualize a Vercel com essa nova chave."
-        );
-      } else if (msg.includes("API_KEY_RESTRICTION") || msg.includes("403")) {
-        alert(
-          "BLOQUEIO DE SEGURANÇA (ERRO 403)\n\n" +
-          "Você restringiu a Chave de API para 'Sites da Web', mas esqueceu de adicionar este domínio.\n\n" +
-          "SOLUÇÃO:\n" +
-          "1. Vá no Google Cloud Console > Credenciais > Sua Chave.\n" +
-          "2. Em 'Restrições de sites', adicione:\n" +
-          "   https://bandeiraagro-ia.vercel.app/*\n" +
-          "3. Salve e aguarde 2 minutos."
-        );
-      } else if (msg.includes("URBAN_PRECISION_LOW")) {
-        alert(
-          "AVALIAÇÃO INTERROMPIDA: BAIXA PRECISÃO (GRAU I)\n\n" +
-          "O sistema bloqueou a geração do laudo pois as amostras encontradas apresentam dispersão muito alta, resultando em Grau I (Baixa Precisão).\n\n" +
-          "O MÍNIMO EXIGIDO É O GRAU II (Média Precisão).\n\n" +
-          "SOLUÇÃO:\n" +
-          "1. Especifique melhor o BAIRRO (Use bairros vizinhos se necessário).\n" +
-          "2. Tente buscar um tipo de imóvel mais padronizado."
-        );
-      } else if (msg.includes("URBAN_SAMPLE_COUNT_LOW")) {
-        alert(
-          "AVALIAÇÃO INTERROMPIDA: AMOSTRAS INSUFICIENTES\n\n" +
-          "A pesquisa automática não encontrou o mínimo de 5 amostras válidas exigidas pela NBR 14653 para atingir o Grau II.\n\n" +
-          "SOLUÇÃO:\n" +
-          "Tente expandir a região ou utilizar nomes de bairros mais populares."
+          "AVALIAÇÃO INTERROMPIDA: MERCADO ESCASSO\n\n" +
+          "Não encontramos pelo menos 3 amostras válidas no bairro informado para realizar uma análise segura.\n\n" +
+          "DICAS PARA RESOLVER:\n" +
+          "1. Tente informar um BAIRRO vizinho mais popular.\n" +
+          "2. Verifique se o tipo de imóvel (ex: Prédio Comercial) possui ofertas online na região.\n" +
+          "3. Se você tiver um link de anúncio, use a área restrita para importar manualmente."
         );
       } else {
         alert(`Erro ao processar a avaliação: ${msg}\n\nTente novamente.`);
@@ -103,7 +70,6 @@ const App: React.FC = () => {
   };
 
   const handleReview = () => {
-    // Retorna para o formulário mantendo os dados atuais
     setCurrentStep(AppStep.FORM);
   };
 
@@ -145,7 +111,6 @@ const App: React.FC = () => {
         />
       )}
       
-      {/* Telas Administrativas */}
       {currentStep === AppStep.LOGIN && <LoginScreen onLoginSuccess={handleLoginSuccess} onBack={handleBackToSelection} />}
       {currentStep === AppStep.DASHBOARD && <AdminDashboard onLogout={handleLogout} />}
     </Layout>
