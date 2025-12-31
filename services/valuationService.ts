@@ -43,12 +43,10 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
   const finalValue = avgVuh * data.areaTotal;
 
   // 2. Cálculo de Liquidação Forçada (Conforme fórmula do PDF)
-  // Valor Liquidação = Valor Mercado * (1 / (1 + i)^n)
   const factorLF = 1 / Math.pow((1 + INTEREST_RATE), ABSORPTION_MONTHS);
   const liquidationValue = finalValue * factorLF;
 
   // Estatísticas
-  const sum = vuhValues.reduce((a, b) => a + b, 0);
   const variance = vuhValues.reduce((a, b) => a + Math.pow(b - avgVuh, 2), 0) / vuhValues.length;
   const stdDev = Math.sqrt(variance);
   const coefVariation = (stdDev / avgVuh) * 100;
@@ -60,7 +58,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
     <div class="report-wrapper bg-white text-gray-900 font-sans">
       
       <!-- PÁGINA 1: CAPA -->
-      <div class="report-page report-cover flex flex-col items-center justify-between p-16 min-h-[297mm]">
+      <div class="report-page report-cover flex flex-col items-center justify-between p-16">
         <div class="mt-10 text-center">
           <div class="mb-4 flex justify-center">
              <div class="w-32 h-32 rounded-full border-4 border-orange-500 flex items-center justify-center p-4">
@@ -100,7 +98,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
       </div>
 
       <!-- PÁGINA 2: RESUMO DA AVALIAÇÃO -->
-      <div class="report-page p-16 min-h-[297mm]">
+      <div class="report-page p-16">
         <h2 class="text-3xl font-serif font-bold text-agro-900 text-center mb-4 uppercase tracking-widest">RESUMO DA AVALIAÇÃO</h2>
         <div class="w-16 h-1 bg-gray-300 mx-auto mb-16"></div>
 
@@ -134,20 +132,20 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
           </div>
         </div>
 
-        <div class="mt-auto pt-32 text-center">
+        <div class="mt-auto pt-20 text-center">
           <p class="font-bold text-gray-800 tracking-[0.1em]">BANDEIRA AGRO</p>
           <p class="text-sm text-gray-500 italic">Inteligência em Avaliações</p>
         </div>
       </div>
 
       <!-- PÁGINA 3: METODOLOGIA E CRITÉRIO -->
-      <div class="report-page p-16 min-h-[297mm] text-gray-700 leading-relaxed">
-        <h2 class="text-xl font-bold mb-6">7 METODOLOGIA GERAL DE AVALIAÇÃO</h2>
+      <div class="report-page p-16 text-gray-700 leading-relaxed">
+        <h2 class="text-xl font-bold mb-6 uppercase">METODOLOGIA GERAL DE AVALIAÇÃO</h2>
         <p class="mb-10 text-justify">
           De acordo com a Norma da ABNT NBR 14653 o terreno será avaliado com base no "Método Comparativo de Dados de Mercado", através de dados de mercado de imóveis semelhantes ao avaliando, à venda ou efetivamente transacionados no livre mercado imobiliário da região.
         </p>
 
-        <h2 class="text-xl font-bold mb-6">8 CRITÉRIO</h2>
+        <h2 class="text-xl font-bold mb-6 uppercase">CRITÉRIO</h2>
         <p class="mb-6">Para a presente avaliação estabelecemos os critérios de Valores de Mercado e Liquidação Forçada, definidos como:</p>
         
         <h3 class="font-bold mb-2">Valor de Mercado</h3>
@@ -165,8 +163,8 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
       </div>
 
       <!-- PÁGINA 4: LIQUIDAÇÃO FORÇADA DETALHES -->
-      <div class="report-page p-16 min-h-[297mm]">
-        <h2 class="text-xl font-bold mb-10">9.4 VALOR DO IMÓVEL PARA LIQUIDAÇÃO FORÇADA</h2>
+      <div class="report-page p-16">
+        <h2 class="text-xl font-bold mb-10 uppercase">VALOR PARA LIQUIDAÇÃO FORÇADA</h2>
         <p class="mb-8 text-justify">Para a determinação do “Valor de Liquidação do Imóvel” foram adotados os preceitos constantes do trabalho técnico mencionado.</p>
         
         <div class="space-y-6 mb-16">
@@ -187,13 +185,13 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
       </div>
 
       <!-- PÁGINAS DE FICHAS DE PESQUISA -->
-      <div class="report-page p-16 min-h-[297mm]">
-        <h2 class="text-xl font-bold mb-2">11 - ANEXO Nº 01</h2>
+      <div class="report-page p-16">
+        <h2 class="text-xl font-bold mb-2 uppercase">ANEXO Nº 01</h2>
         <h3 class="text-2xl font-serif text-gray-400 mb-10 tracking-widest uppercase">FICHAS DE PESQUISA</h3>
         
         <div class="space-y-8">
           ${processedSamples.slice(0, 2).map((s, idx) => `
-            <div class="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+            <div class="border border-gray-200 rounded-xl overflow-hidden shadow-sm page-break-avoid">
               <div class="bg-agro-700 text-white p-4 flex justify-between items-center">
                 <span class="font-bold uppercase tracking-wider">AMOSTRA #${idx + 1}</span>
                 <span class="font-bold">${s.city} - ${s.state}</span>
@@ -241,8 +239,8 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
       </div>
 
       <!-- MEMÓRIA DE CÁLCULO -->
-      <div class="report-page p-16 min-h-[297mm]">
-        <h2 class="text-xl font-bold mb-2">13 - ANEXO Nº 03</h2>
+      <div class="report-page p-16">
+        <h2 class="text-xl font-bold mb-2 uppercase">ANEXO Nº 03</h2>
         <h3 class="text-2xl font-serif text-gray-400 mb-10 tracking-widest uppercase">MEMÓRIA DE CÁLCULO</h3>
         
         <h4 class="font-bold text-gray-700 mb-4 uppercase text-xs tracking-widest">ELEMENTOS COLETADOS</h4>
@@ -303,14 +301,14 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
           </table>
         </div>
 
-        <div class="grid grid-cols-2 gap-10 text-sm">
+        <div class="grid grid-cols-2 gap-10 text-sm pb-10">
           <div class="space-y-3">
-             <p class="flex justify-between border-b pb-1"><span>Média</span> <span class="font-bold">${formatter.format(avgVuh)}</span></p>
-             <p class="flex justify-between border-b pb-1"><span>Desvio Padrão</span> <span class="font-bold">${formatter.format(stdDev)}</span></p>
-             <p class="flex justify-between border-b pb-1"><span>Coef. Variação</span> <span class="font-bold">${coefVariation.toFixed(2)}%</span></p>
+             <p class="flex justify-between border-b pb-1"><span>Média</span> <span class="font-bold text-agro-900">${formatter.format(avgVuh)}</span></p>
+             <p class="flex justify-between border-b pb-1"><span>Desvio Padrão</span> <span class="font-bold text-agro-900">${formatter.format(stdDev)}</span></p>
+             <p class="flex justify-between border-b pb-1"><span>Coef. Variação</span> <span class="font-bold text-agro-900">${coefVariation.toFixed(2)}%</span></p>
              <p class="flex justify-between border-b pb-1"><span>Grau de Precisão</span> <span class="font-bold text-agro-700">Grau II</span></p>
           </div>
-          <div class="bg-gray-50 p-6 rounded-lg border">
+          <div class="bg-gray-50 p-6 rounded-lg border border-gray-200">
             <h5 class="font-bold text-[11px] uppercase tracking-widest mb-4">Intervalo Confiança (80%)</h5>
             <div class="space-y-2 text-xs">
                <p class="flex justify-between"><span>Mínimo</span> <span class="font-bold">${formatter.format(avgVuh * 0.85)}</span></p>
@@ -322,7 +320,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
       </div>
 
       <!-- RESPONSABILIDADE E LIMITAÇÕES -->
-      <div class="report-page p-16 min-h-[297mm] text-gray-700 text-sm leading-relaxed">
+      <div class="report-page p-16 text-gray-700 text-sm leading-relaxed">
         <h2 class="text-xl font-bold mb-10 text-center uppercase tracking-widest">RESPONSABILIDADE E LIMITAÇÕES</h2>
         
         <div class="space-y-6 text-justify">
@@ -330,14 +328,14 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
           
           <p>Ressalva-se que o presente trabalho foi realizado seguindo os preceitos metodológicos da ABNT NBR 14653-3 (Imóveis Rurais) e/ou NBR 14653-2 (Imóveis Urbanos), contudo, enquadra-se na modalidade <strong>"Avaliação Expedita" (Desktop Valuation)</strong>, sendo realizado <strong>sem vistoria in loco</strong> ao imóvel avaliando.</p>
           
-          <p>A fundamentação de valores utilizou como base o <strong>Banco de Dados de Amostras da Bandeira Agro</strong> e dados de mercado disponíveis publicamente. A Bandeira Agro não se responsabiliza por divergências entre as informações inseridas no sistema e a realidade fática do imóvel que apenas uma inspeção presencial detalhada poderia constatar (como estado real de conservação das benfeitorias, invasões, pragas, passivos ambientais ou discrepâncias de área física vs. documental).</p>
+          <p>A fundamentação de valores utilizou como base o <strong>Banco de Dados de Amostras da Bandeira Agro</strong> e dados de mercado disponíveis publicamente. A Bandeira Agro não se responsabiliza por divergências entre as informações inseridas no sistema e a realidade fática do imóvel que apenas uma inspeção presencial detalhada poderia constatar.</p>
           
-          <p>A utilização deste Laudo de Avaliação é restrita à finalidade de estimativa de valor de mercado e liquidação forçada para fins gerenciais, não devendo ser utilizado como único instrumento para garantias bancárias de alto risco sem a devida validação presencial complementar, se exigida pelas normas internas da instituição financeira.</p>
+          <p>A utilização deste Laudo de Avaliação é restrita à finalidade de estimativa de valor de mercado e liquidação forçada para fins gerenciais, não devendo ser utilizado como único instrumento para garantias bancárias de alto risco sem a devida validação presencial complementar.</p>
         </div>
 
-        <div class="mt-40 text-center text-gray-400">
+        <div class="mt-auto pt-40 text-center text-gray-400">
           <p>Documento gerado eletronicamente pela plataforma Bandeira Agro.</p>
-          <p class="mt-2">${new Date().toLocaleDateString('pt-BR')}</p>
+          <p class="mt-2 font-mono text-xs uppercase tracking-widest">${new Date().toLocaleDateString('pt-BR')} | ID-SYSTEM-${Math.random().toString(36).substring(7).toUpperCase()}</p>
         </div>
       </div>
 
@@ -347,13 +345,24 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
       .report-page {
         background: white;
         width: 210mm;
+        min-height: 297mm;
         margin: 0 auto;
         box-shadow: 0 0 10px rgba(0,0,0,0.1);
         position: relative;
-        overflow: hidden;
+        overflow: visible; /* Mudado para permitir que o conteúdo flua se necessário */
         display: flex;
         flex-direction: column;
         box-sizing: border-box;
+        padding-bottom: 25mm; /* Margem de segurança no rodapé */
+      }
+      
+      .report-cover {
+        height: 297mm;
+        overflow: hidden;
+      }
+
+      .page-break-avoid {
+        page-break-inside: avoid;
       }
       
       @media print {
@@ -361,6 +370,11 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
           box-shadow: none;
           margin: 0;
           page-break-after: always;
+          height: 297mm;
+          overflow: hidden;
+        }
+        .report-page:last-child {
+          page-break-after: avoid;
         }
         body { background: white; }
       }
