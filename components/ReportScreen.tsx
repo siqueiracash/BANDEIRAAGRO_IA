@@ -36,10 +36,15 @@ const ReportScreen: React.FC<ReportScreenProps> = ({ data, onReset, onReview }) 
             height: 297mm !important;
             margin: 0 !important;
             padding: 20mm !important;
-            padding-bottom: 30mm !important;
+            padding-bottom: 45mm !important; /* Espaço para o rodapé */
             overflow: hidden !important;
+            position: relative !important;
           }
           
+          .report-page.page-start-new {
+            page-break-before: always !important;
+          }
+
           /* Páginas com tabelas longas podem precisar de altura automática */
           .report-page.h-auto {
              height: auto !important;
