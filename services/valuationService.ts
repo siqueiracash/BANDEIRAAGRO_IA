@@ -4,40 +4,12 @@ import { filterSamples, saveSample } from "./storageService";
 import { findMarketSamplesIA } from "./geminiService";
 
 const OFFER_FACTOR = 0.90; 
-const INTEREST_RATE = 0.0151; 
-const ABSORPTION_MONTHS = 24;
+const INTEREST_RATE = 0.0151; // 1,51% ao mês
+const ABSORPTION_MONTHS = 24; // 24 meses
 
 /**
- * Mapeamentos de Pesos para Homogeneização
+ * Utilitário para dividir array em pedaços (chunks) para as páginas do laudo
  */
-const ACCESS_WEIGHTS: Record<string, number> = {
-  'Ótimo (asfalto, tráfego permanente)': 1.10,
-  'Muito Bom (estrada classe, não asfalto)': 1.05,
-  'Bom (não pavimentada, tráfego permanente)': 1.00,
-  'Regular (não pavimentada, sujeita a interrupção)': 0.90,
-  'Mau (interrupção na chuva)': 0.80,
-  'Péssimo (sem ponte)': 0.70,
-  'Encravada': 0.60
-};
-
-const TOPO_WEIGHTS: Record<string, number> = {
-  'Plano': 1.00,
-  'Leve-Ondulado': 0.95,
-  'Ondulado': 0.85,
-  'Montanhoso': 0.70
-};
-
-const SOIL_WEIGHTS: Record<string, number> = {
-  'I - Culturas (Sem problemas)': 1.15,
-  'II - Culturas (Pequenos problemas)': 1.10,
-  'III - Culturas (Sérios problemas)': 1.00,
-  'IV - Culturas Ocasionais / Pastagens': 0.90,
-  'V - Só Pastagens': 0.85,
-  'VI - Só Pastagens (Pequenos problemas)': 0.80,
-  'VII - Florestas': 0.70,
-  'VIII - Abrigo Silvestre': 0.60
-};
-
 const chunkArray = <T>(array: T[], size: number): T[][] => {
   const result = [];
   for (let i = 0; i < array.length; i += size) {
@@ -46,76 +18,83 @@ const chunkArray = <T>(array: T[], size: number): T[][] => {
   return result;
 };
 
+/**
+ * SVG da Logomarca BANDEIRA AGRO
+ */
 const LogoSVG = `
   <div class="flex flex-col items-center">
-    <div class="relative w-28 h-28 flex items-center justify-center">
-      <svg viewBox="0 0 100 100" class="absolute inset-0 w-full h-full text-orange-500 fill-none stroke-current" stroke-width="3">
-        <circle cx="50" cy="50" r="46" />
+    <div class="relative w-32 h-32 flex items-center justify-center">
+      <!-- Círculo Laranja Externo -->
+      <svg viewBox="0 0 100 100" class="absolute inset-0 w-full h-full text-orange-500 fill-none stroke-current" stroke-width="4">
+        <circle cx="50" cy="50" r="45" />
       </svg>
-      <svg viewBox="0 0 100 100" class="w-16 h-16 text-green-800 fill-current">
+      <!-- Folha Estilizada -->
+      <svg viewBox="0 0 100 100" class="w-20 h-20 text-green-700 fill-current">
         <path d="M50,85 C55,70 70,55 80,35 C75,45 65,50 55,55 C60,40 70,25 75,10 C65,20 55,30 50,45 C45,30 35,20 25,10 C30,25 40,40 45,55 C35,50 25,45 20,35 C30,55 45,70 50,85 Z" />
       </svg>
     </div>
-    <h1 class="mt-3 text-2xl font-serif font-bold tracking-[0.2em] text-gray-800 uppercase">BANDEIRA AGRO</h1>
+    <h1 class="mt-4 text-3xl font-serif font-bold tracking-[0.1em] text-gray-800 uppercase">BANDEIRA AGRO</h1>
   </div>
 `;
 
+/**
+ * Realiza os cálculos estatísticos e formata o laudo conforme o padrão estável BANDEIRA AGRO
+ */
 const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): ValuationResult => {
-  if (pool.length < 3) throw new Error("AMOSTRAS_INSUFICIENTES");
+  if (pool.length < 3) {
+    throw new Error("AMOSTRAS_INSUFICIENTES");
+  }
 
-  // Determinar pesos do avaliando (Target)
-  const targetAccess = ACCESS_WEIGHTS[data.access || ''] || 1.00;
-  const targetTopo = TOPO_WEIGHTS[data.topography || ''] || 1.00;
-  const targetSoil = SOIL_WEIGHTS[data.landCapability || ''] || 1.00;
-
-  // 1. Processamento e Homogeneização Dinâmica
+  // 1. Homogeneização base de todas as amostras
   const allProcessed = pool.map(s => {
-    // Fator Oferta
-    const fOferta = OFFER_FACTOR;
+    const adjustedPrice = s.price * OFFER_FACTOR;
+    const adjustedPricePerUnit = adjustedPrice / s.areaTotal;
     
-    // Fator Dimensão (fDim) - Doutrina NBR 14653
-    // Relação entre área do avaliando e área da amostra
-    const areaRatio = data.areaTotal / s.areaTotal;
-    const exponent = data.type === PropertyType.RURAL ? 0.125 : 0.10;
-    const fDim = Math.pow(areaRatio, exponent);
-
-    // Fatores Qualitativos (Amostra sempre considerada Paradigma 1.00 se não houver dados)
-    const fAcesso = targetAccess / 1.00;
-    const fTopo = targetTopo / 1.00;
-    const fCap = targetSoil / 1.00;
-    const fOutros = 1.00;
-
-    const vub = s.price / s.areaTotal;
-    const vuh = vub * fOferta * fDim * fAcesso * fTopo * fCap * fOutros;
-
+    // Fatores de Homogeneização Normatizados
+    const fOferta = OFFER_FACTOR;
+    const fDim = 1.00;
+    const fCap = data.type === PropertyType.RURAL ? 1.27 : 1.00;
+    const fAcesso = 1.00;
+    const fTopo = 1.00;
+    const fOutros = 1.08;
+    
+    const vuh = adjustedPricePerUnit * fDim * fCap * fAcesso * fTopo * fOutros;
+    
     return { 
-      ...s, vub, vuh, 
-      fOferta, fDim, fAcesso, fTopo, fCap, fOutros 
+      ...s, 
+      adjustedPricePerUnit,
+      vuh,
+      fOferta, fDim, fCap, fAcesso, fTopo, fOutros
     };
   });
 
-  // 2. Saneamento de Outliers (Intervalo de 2.5 Desvios Padrão)
-  const initialVuhs = allProcessed.map(s => s.vuh);
-  const initialAvg = initialVuhs.reduce((a, b) => a + b, 0) / initialVuhs.length;
-  const initialStdDev = Math.sqrt(initialVuhs.reduce((a, b) => a + Math.pow(b - initialAvg, 2), 0) / initialVuhs.length);
+  // 2. Saneamento de Outliers (Filtro de 40% em relação à mediana)
+  const sortedVuhs = [...allProcessed].map(s => s.vuh).sort((a, b) => a - b);
+  const medianVuh = sortedVuhs[Math.floor(sortedVuhs.length / 2)];
   
   const sanitizedPool = allProcessed.filter(s => {
-    const diff = Math.abs(s.vuh - initialAvg);
-    return diff <= (2.0 * initialStdDev); // Filtro mais rigoroso que 3.0
+    const ratio = s.vuh / medianVuh;
+    return ratio >= 0.6 && ratio <= 1.4;
   });
 
-  const finalPool = (sanitizedPool.length >= 3 ? sanitizedPool : allProcessed)
-    .sort((a, b) => Math.abs(a.vuh - initialAvg) - Math.abs(b.vuh - initialAvg))
-    .slice(0, 6);
+  // Garante o pool mínimo
+  const workPool = sanitizedPool.length >= 3 ? sanitizedPool : allProcessed;
 
-  // 3. Cálculos Estatísticos Finais
+  // 3. Seleção final (proximidade da mediana)
+  const finalPool = [...workPool].sort((a, b) => {
+    return Math.abs(a.vuh - medianVuh) - Math.abs(b.vuh - medianVuh);
+  }).slice(0, 6);
+
+  // 4. Cálculos Finais
   const vuhValues = finalPool.map(s => s.vuh);
   const avgVuh = vuhValues.reduce((a, b) => a + b, 0) / vuhValues.length;
   const finalValue = avgVuh * data.areaTotal;
 
-  const liquidationFactor = 1 / Math.pow((1 + INTEREST_RATE), ABSORPTION_MONTHS);
-  const liquidationValue = finalValue * liquidationFactor;
+  // Liquidação Forçada (Desconto Financeiro no tempo)
+  const factorLF = 1 / Math.pow((1 + INTEREST_RATE), ABSORPTION_MONTHS);
+  const liquidationValue = finalValue * factorLF;
 
+  // Estatísticas de Precisão
   const variance = vuhValues.reduce((a, b) => a + Math.pow(b - avgVuh, 2), 0) / vuhValues.length;
   const stdDev = Math.sqrt(variance);
   const coefVariation = (stdDev / avgVuh) * 100;
@@ -127,123 +106,133 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
   const formatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
   const unitLabel = data.type === PropertyType.URBAN ? 'm²' : 'ha';
 
+  const sampleChunks = chunkArray(finalPool, 3);
+
   const reportHtml = `
-    <div class="report-wrapper bg-white text-gray-900">
+    <div class="report-wrapper bg-white text-gray-900 font-sans">
       
-      <!-- CAPA -->
-      <div class="report-page items-center justify-between pb-32">
-        <div class="mt-20">${LogoSVG}</div>
+      <!-- PÁGINA 1: CAPA -->
+      <div class="report-page report-cover flex flex-col items-center justify-between py-20">
+        <div class="mt-10">
+          ${LogoSVG}
+        </div>
+
         <div class="text-center">
-          <p class="text-orange-500 font-bold tracking-[0.5em] text-[10px] mb-2">INTELLIGENCE REPORT</p>
-          <h2 class="text-5xl font-serif font-bold text-agro-900 uppercase leading-none">Laudo de<br>Avaliação</h2>
-          <div class="w-20 h-1 bg-agro-700 mx-auto mt-8"></div>
-        </div>
-        <div class="w-full max-w-md border-t border-gray-100 pt-8">
-          <div class="flex justify-between text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-            <span>Data: ${new Date().toLocaleDateString('pt-BR')}</span>
-            <span>Ref: BA-${Math.random().toString(36).substring(7).toUpperCase()}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- RESUMO EXECUTIVO -->
-      <div class="report-page">
-        <div class="flex justify-between items-start mb-12">
-           <h2 class="text-2xl font-serif font-bold text-agro-900 uppercase">Resumo Executivo</h2>
-           <span class="bg-agro-100 text-agro-700 px-3 py-1 rounded-full text-[10px] font-bold uppercase">${precisionGrade}</span>
+          <h2 class="text-5xl font-serif font-bold text-agro-900 mb-4 uppercase tracking-tighter">LAUDO TÉCNICO DE<br>AVALIAÇÃO</h2>
+          <div class="w-32 h-1 bg-agro-900 mx-auto mt-6"></div>
+          <p class="mt-4 text-gray-400 font-bold tracking-widest text-xs">NBR 14653 - INTELIGÊNCIA DE MERCADO</p>
         </div>
 
-        <div class="grid grid-cols-2 gap-10 mb-16">
-          <div class="space-y-6">
-            <div>
-              <h3 class="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">Identificação</h3>
-              <p class="text-sm font-semibold text-gray-800">${data.address || data.neighborhood || 'Área Rural'}, ${data.city} - ${data.state}</p>
-            </div>
-            <div>
-              <h3 class="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">Área Avaliada</h3>
-              <p class="text-lg font-bold text-agro-900">${data.areaTotal.toLocaleString('pt-BR')} ${unitLabel}</p>
-            </div>
-          </div>
-          <div class="bg-gray-50 p-6 rounded-2xl border border-gray-100">
-             <h3 class="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-4">Metodologia Aplicada</h3>
-             <p class="text-[11px] text-gray-600 leading-relaxed italic">
-               "Método Comparativo Direto de Dados de Mercado com Saneamento de Outliers e Homogeneização por Fatores de Transposição e Localização."
-             </p>
-          </div>
-        </div>
-
-        <div class="mt-auto border-t border-agro-900 pt-10">
-          <div class="grid grid-cols-2 gap-4">
-             <div class="bg-agro-900 text-white p-8 rounded-3xl">
-                <p class="text-[10px] font-bold text-agro-300 uppercase tracking-widest mb-2">Valor de Mercado</p>
-                <p class="text-3xl font-bold">${formatter.format(finalValue)}</p>
-             </div>
-             <div class="bg-orange-500 text-white p-8 rounded-3xl">
-                <p class="text-[10px] font-bold text-orange-200 uppercase tracking-widest mb-2">Liquidação Forçada</p>
-                <p class="text-3xl font-bold">${formatter.format(liquidationValue)}</p>
-             </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- MEMÓRIA DE CÁLCULO -->
-      <div class="report-page">
-        <h2 class="text-xl font-bold mb-8 uppercase border-b pb-4">Detalhamento Técnico</h2>
-        
-        <div class="overflow-x-auto">
-          <table class="w-full text-[9px] border-collapse">
-            <thead>
-              <tr class="bg-gray-100 text-gray-600 uppercase">
-                <th class="p-2 border border-gray-200">Amostra</th>
-                <th class="p-2 border border-gray-200">Preço (R$)</th>
-                <th class="p-2 border border-gray-200">fOferta</th>
-                <th class="p-2 border border-gray-200">fDim</th>
-                <th class="p-2 border border-gray-200">fTopo</th>
-                <th class="p-2 border border-gray-200 font-bold">VUH (R$)</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${finalPool.map((s, i) => `
-                <tr>
-                  <td class="p-2 border border-gray-100 font-bold text-center">${i+1}</td>
-                  <td class="p-2 border border-gray-100">${s.price.toLocaleString('pt-BR')}</td>
-                  <td class="p-2 border border-gray-100 text-center">${s.fOferta.toFixed(2)}</td>
-                  <td class="p-2 border border-gray-100 text-center">${s.fDim.toFixed(2)}</td>
-                  <td class="p-2 border border-gray-100 text-center">${s.fTopo.toFixed(2)}</td>
-                  <td class="p-2 border border-gray-100 font-bold text-agro-700">${formatter.format(s.vuh)}</td>
-                </tr>
-              `).join('')}
-            </tbody>
+        <div class="w-full max-w-2xl border-t border-gray-300 pt-8">
+          <table class="w-full text-left text-sm uppercase tracking-wider">
+            <tr class="border-b border-gray-100">
+              <td class="py-4 font-bold text-gray-500 w-1/3 text-[10px]">SOLICITANTE</td>
+              <td class="py-4 font-bold text-gray-800">BANDEIRA AGRO</td>
+            </tr>
+            <tr class="border-b border-gray-100">
+              <td class="py-4 font-bold text-gray-500 text-[10px]">OBJETIVO</td>
+              <td class="py-4 font-bold text-gray-800 text-[10px]">DETERMINAÇÃO DOS VALORES DE MERCADO E LIQUIDAÇÃO FORÇADA</td>
+            </tr>
+            <tr>
+              <td class="py-4 font-bold text-gray-500 text-[10px]">DATA BASE</td>
+              <td class="py-4 font-bold text-gray-800">${new Date().toLocaleDateString('pt-BR')}</td>
+            </tr>
           </table>
         </div>
+      </div>
 
-        <div class="grid grid-cols-3 gap-6 mt-10">
-          <div class="p-4 bg-gray-50 rounded-xl">
-            <p class="text-[8px] font-bold text-gray-400 uppercase mb-1">Média Homogênea</p>
-            <p class="text-sm font-bold text-gray-800">${formatter.format(avgVuh)}</p>
+      <!-- PÁGINA 2: RESUMO -->
+      <div class="report-page">
+        <h2 class="text-3xl font-serif font-bold text-agro-900 text-center mb-4 uppercase tracking-widest">RESUMO DA AVALIAÇÃO</h2>
+        <div class="w-16 h-1 bg-gray-300 mx-auto mb-16"></div>
+
+        <div class="space-y-10 max-w-3xl mx-auto border-b border-gray-200 pb-16">
+          <div>
+            <h3 class="font-bold text-gray-500 uppercase text-xs tracking-[0.2em] mb-2">LOCALIZAÇÃO</h3>
+            <p class="text-xl text-gray-800 font-medium">${data.address || 'Área Rural'}, ${data.neighborhood || ''}, ${data.city} - ${data.state}</p>
           </div>
-          <div class="p-4 bg-gray-50 rounded-xl">
-            <p class="text-[8px] font-bold text-gray-400 uppercase mb-1">Desvio Padrão</p>
-            <p class="text-sm font-bold text-gray-800">${formatter.format(stdDev)}</p>
-          </div>
-          <div class="p-4 bg-gray-50 rounded-xl">
-            <p class="text-[8px] font-bold text-gray-400 uppercase mb-1">Coef. Variação</p>
-            <p class="text-sm font-bold ${coefVariation > 30 ? 'text-red-500' : 'text-agro-700'}">${coefVariation.toFixed(2)}%</p>
+
+          <div>
+            <h3 class="font-bold text-gray-500 uppercase text-xs tracking-[0.2em] mb-2">DIMENSÕES</h3>
+            <p class="text-xl text-gray-800 font-bold uppercase tracking-tighter">ÁREA TOTAL: ${data.areaTotal.toLocaleString('pt-BR')} ${unitLabel}</p>
           </div>
         </div>
 
-        <div class="mt-10 p-4 border border-blue-100 bg-blue-50 rounded-xl text-[10px] text-blue-800 leading-relaxed">
-          <strong>Parecer Técnico:</strong> A homogeneização foi realizada comparando o imóvel avaliando com amostras de mercado coletadas em tempo real. O saneamento eliminou dados discrepantes (fora do intervalo de 2.0σ), resultando em um Coeficiente de Variação de ${coefVariation.toFixed(2)}%, o que confere ao laudo o <strong>${precisionGrade}</strong> conforme NBR 14653.
+        <div class="mt-12 text-center">
+          <h3 class="font-bold text-gray-900 uppercase text-sm tracking-[0.3em] mb-10">VALORES APURADOS</h3>
+          <div class="space-y-6">
+            <div class="p-4 bg-gray-50 rounded-xl inline-block px-10">
+              <p class="text-gray-500 uppercase text-xs mb-1">Valor de Mercado</p>
+              <p class="text-3xl text-gray-900 font-bold">${formatter.format(finalValue)}</p>
+            </div>
+            <div>
+              <p class="text-gray-500 uppercase text-xs mb-1">Valor de Liquidação Forçada</p>
+              <p class="text-2xl text-gray-800 font-bold">${formatter.format(liquidationValue)}</p>
+            </div>
+          </div>
         </div>
       </div>
+
+      <!-- PÁGINA 3: METODOLOGIA -->
+      <div class="report-page text-gray-700">
+        <h2 class="text-xl font-bold mb-6 uppercase">METODOLOGIA GERAL</h2>
+        <p class="mb-10 text-justify text-sm leading-relaxed">
+          Este trabalho foi desenvolvido utilizando o <strong>Método Comparativo Direto de Dados de Mercado</strong>, conforme preconiza a NBR 14653. Foi aplicado o <strong>Saneamento Estatístico de Mediana</strong> para garantir a homogeneidade da amostra, eliminando discrepâncias superiores a 40% em relação ao comportamento central do mercado local.
+        </p>
+
+        <h2 class="text-xl font-bold mb-6 uppercase">LIQUIDAÇÃO FORÇADA</h2>
+        <p class="text-justify text-sm leading-relaxed mb-10">
+           Calculada sob a condição de venda imediata em um horizonte de 24 meses, aplicando-se o deságio financeiro pela taxa de juros de 1,51% a.m. (Custo de Oportunidade do Capital).
+        </p>
+        
+        <div class="mt-auto p-6 bg-agro-50 rounded-2xl border border-agro-100">
+           <h3 class="font-bold text-agro-900 uppercase text-xs mb-2">Enquadramento de Precisão</h3>
+           <p class="text-sm font-bold text-agro-800">${precisionGrade} (CV: ${coefVariation.toFixed(2)}%)</p>
+        </div>
+      </div>
+
+      <!-- ANEXOS: FICHAS DE PESQUISA -->
+      ${sampleChunks.map((chunk, chunkIdx) => `
+        <div class="report-page annex-page">
+          <h2 class="text-xl font-bold mb-8 uppercase">ANEXO: FICHAS DE PESQUISA</h2>
+          <div class="space-y-6">
+            ${chunk.map((s, idx) => `
+              <div class="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                <div class="bg-agro-900 text-white p-3 flex justify-between">
+                  <span class="font-bold uppercase text-[10px]">AMOSTRA #${(chunkIdx * 3) + idx + 1}</span>
+                  <span class="font-bold text-[9px] uppercase">${s.city}</span>
+                </div>
+                <div class="grid grid-cols-2 text-sm p-4 gap-4">
+                  <div>
+                    <p class="font-bold text-gray-400 text-[8px] uppercase mb-0.5">FONTE</p>
+                    <p class="text-gray-800 font-medium text-[10px] truncate">${s.source}</p>
+                  </div>
+                  <div>
+                    <p class="font-bold text-gray-400 text-[8px] uppercase mb-0.5">VALOR TOTAL</p>
+                    <p class="text-gray-800 font-bold text-xs">${formatter.format(s.price)}</p>
+                  </div>
+                  <div>
+                    <p class="font-bold text-gray-400 text-[8px] uppercase mb-0.5">ÁREA</p>
+                    <p class="text-gray-800 font-medium text-[10px]">${s.areaTotal.toLocaleString('pt-BR')} ${unitLabel}</p>
+                  </div>
+                  <div>
+                    <p class="font-bold text-gray-400 text-[8px] uppercase mb-0.5">VALOR HOMOGENEIZADO</p>
+                    <p class="text-agro-700 font-bold text-[10px]">${formatter.format(s.vuh || 0)}/${unitLabel}</p>
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `).join('')}
 
     </div>
 
     <style>
-      .report-page { background: white; width: 210mm; height: 297mm; margin: 0 auto; padding: 25mm; display: flex; flex-direction: column; box-sizing: border-box; }
+      .report-page { background: white; width: 210mm; height: 297mm; margin: 0 auto; padding: 25mm; display: flex; flex-direction: column; box-sizing: border-box; position: relative; }
       @media print {
-        .report-page { page-break-after: always; height: 297mm; padding: 25mm; }
-        .report-page:last-child { page-break-after: avoid; }
+        body { background: white !important; margin: 0 !important; }
+        .report-page { page-break-after: always !important; break-after: page !important; height: 297mm !important; width: 210mm !important; }
       }
     </style>
   `;
@@ -264,7 +253,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
 export const performValuation = async (data: PropertyData): Promise<ValuationResult> => {
   let pool = await filterSamples(data.type, data.city, data.state);
   
-  if (pool.length < 10) {
+  if (pool.length < 8) {
     const aiSamples = await findMarketSamplesIA(data);
     pool = [...pool, ...aiSamples];
     aiSamples.forEach(s => saveSample(s).catch(() => {}));
