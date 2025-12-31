@@ -5,7 +5,7 @@ import { PropertyData, MarketSample, PropertyType } from "../types";
 const isPreview = () => !!(window as any).aistudio;
 
 /**
- * Motor de IA local para uso no Preview do AI Studio (Usa o SDK diretamente)
+ * Motor de IA local para uso no Preview do AI Studio
  */
 const runPreviewAI = async (payload: any) => {
   const apiKey = process.env.API_KEY;
@@ -14,11 +14,20 @@ const runPreviewAI = async (payload: any) => {
   
   if (payload.action === 'findSamples') {
     const { data } = payload;
-    const prompt = `Busque amostras de ${data.urbanSubType || data.ruralActivity} em ${data.city}. Retorne JSON.`;
+    const typeLabel = data.type === PropertyType.URBAN ? data.urbanSubType : data.ruralActivity;
+    
+    // Prompt ultra específico para evitar mistura de tipos (ex: apto vs comercial)
+    const prompt = `Busque amostras reais e atuais de venda exclusivas para o tipo "${typeLabel}" na cidade de ${data.city}, ${data.state}. 
+    É obrigatório que sejam apenas imóveis do tipo ${typeLabel}. 
+    Retorne um array JSON com objetos contendo: title, price, area, neighborhood, source, url, bedrooms, bathrooms, parking.`;
+    
     const res = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
-      config: { tools: [{ googleSearch: {} }], responseMimeType: "application/json" }
+      config: { 
+        tools: [{ googleSearch: {} }], 
+        responseMimeType: "application/json" 
+      }
     });
     return JSON.parse(res.text || "[]");
   }
@@ -26,7 +35,7 @@ const runPreviewAI = async (payload: any) => {
 };
 
 /**
- * Função centralizada para chamadas de IA (Backend Vercel ou SDK local)
+ * Função centralizada para chamadas de IA
  */
 const callAI = async (payload: any) => {
   if (isPreview()) return await runPreviewAI(payload);
@@ -39,17 +48,13 @@ const callAI = async (payload: any) => {
     });
 
     const contentType = response.headers.get("content-type");
-    
-    // Se o servidor retornar HTML (erro 404/500), isso causa o erro "Unexpected token T"
     if (!contentType || !contentType.includes("application/json")) {
-      const errorText = await response.text();
-      console.error("Resposta inválida do servidor (HTML):", errorText);
-      throw new Error("O servidor da Vercel retornou uma página de erro em vez de dados. Verifique se o arquivo api/valuation.ts existe e se a API_KEY foi configurada no painel da Vercel.");
+      throw new Error("Resposta inválida do servidor.");
     }
 
     if (!response.ok) {
       const errData = await response.json();
-      throw new Error(errData.error || "Erro desconhecido no servidor de IA.");
+      throw new Error(errData.error || "Erro no servidor de IA.");
     }
 
     return await response.json();
@@ -71,12 +76,12 @@ export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = fal
       address: s.neighborhood ? `${s.neighborhood}, ${data.city}` : data.city,
       city: data.city,
       state: data.state,
-      neighborhood: s.neighborhood || data.neighborhood,
+      neighborhood: s.neighborhood || data.neighborhood || 'Centro',
       price: Number(s.price),
       areaTotal: Number(s.area),
       pricePerUnit: Number(s.price) / Number(s.area),
       date: new Date().toISOString(),
-      source: s.source || 'Portal Integrado',
+      source: s.source || 'Portal Imobiliário',
       url: s.url,
       urbanSubType: data.urbanSubType,
       ruralActivity: data.ruralActivity,
@@ -84,7 +89,7 @@ export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = fal
       bathrooms: s.bathrooms || 0,
       parking: s.parking || 0,
       conservationState: 'Bom'
-    })).filter((s: any) => s.price > 10000);
+    })).filter((s: any) => s.price > 10000 && s.areaTotal > 0);
   } catch (error: any) {
     throw error;
   }
