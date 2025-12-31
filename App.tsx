@@ -17,18 +17,24 @@ const App: React.FC = () => {
   const [propertyData, setPropertyData] = useState<PropertyData>(INITIAL_PROPERTY_DATA);
   const [valuationResult, setValuationResult] = useState<ValuationResult | null>(null);
 
+  // Verifica se a chave de API é válida
+  const isKeyValid = () => {
+    const key = process.env.API_KEY;
+    return typeof key === 'string' && key.length > 5 && key !== 'undefined';
+  };
+
   useEffect(() => {
     checkApiKey();
   }, []);
 
   const checkApiKey = async () => {
-    // 1. Verifica se a chave já está disponível no process.env (Vercel ou similar)
-    if (process.env.API_KEY && process.env.API_KEY !== 'undefined' && process.env.API_KEY !== '') {
+    // 1. Se a chave já estiver injetada e for válida, pula o setup
+    if (isKeyValid()) {
       setCurrentStep(AppStep.SELECTION);
       return;
     }
 
-    // 2. Verifica via helper do AI Studio
+    // 2. Se estiver no ambiente de IA Studio, verifica se já selecionou
     if (window.aistudio) {
       try {
         const hasKey = await window.aistudio.hasSelectedApiKey();
@@ -41,13 +47,16 @@ const App: React.FC = () => {
         setCurrentStep(AppStep.SETUP);
       }
     } else {
-      // Caso fora do AI Studio e sem chave, levamos para a seleção esperando que a chave apareça ou falhe graciosamente
-      setCurrentStep(AppStep.SELECTION);
+      // Caso fora do AI Studio e sem chave, obriga o setup
+      setCurrentStep(AppStep.SETUP);
     }
   };
 
   const handleStart = () => {
-    setCurrentStep(AppStep.SELECTION);
+    // Após clicar em ativar, dá um tempo pequeno para o ambiente injetar a chave
+    setTimeout(() => {
+      setCurrentStep(AppStep.SELECTION);
+    }, 500);
   };
 
   const handleTypeSelect = (type: PropertyType) => {
@@ -56,18 +65,17 @@ const App: React.FC = () => {
   };
 
   const handleFormSubmit = async (data: PropertyData) => {
+    // Verificação de última hora
+    if (!isKeyValid()) {
+      alert("Chave de API não detectada. Por favor, ative o motor de IA.");
+      setCurrentStep(AppStep.SETUP);
+      return;
+    }
+
     setPropertyData(data);
     setCurrentStep(AppStep.LOADING);
     
     try {
-      // Verificação de segurança pré-vôo
-      if (!process.env.API_KEY && window.aistudio) {
-         const hasKey = await window.aistudio.hasSelectedApiKey();
-         if (!hasKey) {
-           throw new Error("AUTH_REQUIRED");
-         }
-      }
-
       let result;
       if (data.type === PropertyType.RURAL) {
         result = await generateManualValuation(data);
@@ -81,18 +89,14 @@ const App: React.FC = () => {
       console.error("Valuation Error:", error);
       const msg = error instanceof Error ? error.message : String(error);
       
-      // Tratamento de Erros de Autenticação / Chave
-      if (msg.includes("Requested entity was not found") || 
-          msg.includes("API_KEY_INVALID") || 
-          msg.includes("AUTH_REQUIRED") ||
-          msg.includes("API key not found")) {
-        alert("Sua conexão com o motor de IA precisa ser renovada. Por favor, ative sua chave novamente.");
+      if (msg.includes("AUTH_REQUIRED") || msg.includes("API Key") || msg.includes("not found")) {
+        alert("Sua conexão com o motor de IA expirou ou é inválida. Vamos reativar.");
         setCurrentStep(AppStep.SETUP);
       } else if (msg.includes("AMOSTRAS_INSUFICIENTES")) {
-        alert("Não encontramos amostras suficientes para uma avaliação segura neste local. Tente outro bairro ou cidade.");
+        alert("Não encontramos amostras suficientes. Tente outro bairro ou cidade.");
         setCurrentStep(AppStep.FORM);
       } else {
-        alert(`Ocorreu um problema técnico: ${msg}`);
+        alert(`Erro técnico: ${msg}`);
         setCurrentStep(AppStep.FORM);
       }
     }

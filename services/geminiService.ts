@@ -3,11 +3,21 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { PropertyData, PropertyType, MarketSample } from "../types";
 
 /**
- * Busca Amostras com Integração Profunda em Portais (Imovelweb, Zap, VivaReal, OLX)
+ * Valida a chave de API antes de instanciar o SDK
+ */
+const getAiClient = () => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey || apiKey === 'undefined' || apiKey === '') {
+    throw new Error("AUTH_REQUIRED");
+  }
+  return new GoogleGenAI({ apiKey });
+};
+
+/**
+ * Busca Amostras com Integração Profunda em Portais
  */
 export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = false): Promise<MarketSample[]> => {
-  // Instancia o cliente usando a variável de ambiente injetada
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+  const ai = getAiClient();
   
   const locationContext = isDeepSearch 
     ? `${data.city} ${data.state} (bairros próximos ao ${data.neighborhood || 'Centro'})`
@@ -16,15 +26,8 @@ export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = fal
   const prompt = `
     Aja como um Agente de Inteligência Imobiliária da BANDEIRA AGRO.
     Objetivo: Encontrar 15 amostras REAIS de venda de ${data.urbanSubType || data.ruralActivity} em ${locationContext}.
-    
-    FONTES OBRIGATÓRIAS: Imovelweb, Zap Imóveis, VivaReal e OLX.
-    
-    REGRAS DE EXTRAÇÃO:
-    1. Ignore anúncios de ALUGUEL.
-    2. Ignore anúncios sem PREÇO ou sem ÁREA (m²/ha).
-    3. Extraia o link (URL) original do anúncio.
-    4. Identifique o padrão de conservação (Novo, Bom, Regular).
-    5. Se encontrar poucos resultados no bairro, expanda para bairros adjacentes de mesmo padrão.
+    FONTES: Imovelweb, Zap Imóveis, VivaReal e OLX.
+    REGRAS: Ignore aluguéis, ignore sem preço/área. Extraia URL, preço e área.
   `;
 
   try {
@@ -43,7 +46,7 @@ export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = fal
               price: { type: Type.NUMBER },
               area: { type: Type.NUMBER },
               neighborhood: { type: Type.STRING },
-              source: { type: Type.STRING, description: "Nome do portal (ex: Imovelweb)" },
+              source: { type: Type.STRING },
               url: { type: Type.STRING },
               bedrooms: { type: Type.NUMBER },
               bathrooms: { type: Type.NUMBER },
@@ -56,7 +59,6 @@ export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = fal
     });
 
     const results = JSON.parse(response.text || "[]");
-    
     return results.map((s: any, index: number) => ({
       id: `ia-${Date.now()}-${index}`,
       type: data.type,
@@ -78,7 +80,6 @@ export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = fal
       parking: s.parking || 0,
       conservationState: 'Bom'
     })).filter((s: any) => s.price > 5000);
-
   } catch (error) {
     console.error("Erro na busca integrada:", error);
     throw error;
@@ -86,18 +87,12 @@ export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = fal
 };
 
 /**
- * Extrai dados técnicos de uma URL de anúncio usando IA com Search Grounding
+ * Extrai dados técnicos de uma URL de anúncio
  */
 export const extractSampleFromUrl = async (url: string, type: PropertyType): Promise<Partial<MarketSample> | null> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-  
-  const prompt = `
-    Analise rigorosamente o anúncio de imóvel no link: ${url}
-    Extraia os metadados técnicos para um imóvel do tipo ${type}.
-    Retorne apenas o JSON no formato solicitado.
-  `;
-
   try {
+    const ai = getAiClient();
+    const prompt = `Analise o anúncio: ${url}. Extraia metadados técnicos para imóvel ${type}.`;
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
@@ -110,24 +105,14 @@ export const extractSampleFromUrl = async (url: string, type: PropertyType): Pro
             title: { type: Type.STRING },
             price: { type: Type.NUMBER },
             areaTotal: { type: Type.NUMBER },
-            areaBuilt: { type: Type.NUMBER },
             city: { type: Type.STRING },
             state: { type: Type.STRING },
-            neighborhood: { type: Type.STRING },
-            address: { type: Type.STRING },
-            description: { type: Type.STRING },
-            urbanSubType: { type: Type.STRING },
-            ruralActivity: { type: Type.STRING },
-            bedrooms: { type: Type.NUMBER },
-            bathrooms: { type: Type.NUMBER },
-            parking: { type: Type.NUMBER }
+            neighborhood: { type: Type.STRING }
           }
         }
       }
     });
-
-    if (!response.text) return null;
-    return JSON.parse(response.text);
+    return response.text ? JSON.parse(response.text) : null;
   } catch (error) {
     console.error("Erro na extração via URL:", error);
     return null;
