@@ -84,7 +84,6 @@ export interface ValuationResult {
 }
 
 export enum AppStep {
-  SETUP = -1,     // Novo: Verificação de Chave
   SELECTION = 0,
   FORM = 1,
   LOADING = 2,

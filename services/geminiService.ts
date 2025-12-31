@@ -3,21 +3,11 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { PropertyData, PropertyType, MarketSample } from "../types";
 
 /**
- * Valida a chave de API antes de instanciar o SDK
- */
-const getAiClient = () => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey || apiKey === 'undefined' || apiKey === '') {
-    throw new Error("AUTH_REQUIRED");
-  }
-  return new GoogleGenAI({ apiKey });
-};
-
-/**
  * Busca Amostras com Integração Profunda em Portais
  */
 export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = false): Promise<MarketSample[]> => {
-  const ai = getAiClient();
+  // A chave deve estar configurada no ambiente da hospedagem (ex: Vercel Environment Variables)
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
   
   const locationContext = isDeepSearch 
     ? `${data.city} ${data.state} (bairros próximos ao ${data.neighborhood || 'Centro'})`
@@ -91,7 +81,7 @@ export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = fal
  */
 export const extractSampleFromUrl = async (url: string, type: PropertyType): Promise<Partial<MarketSample> | null> => {
   try {
-    const ai = getAiClient();
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
     const prompt = `Analise o anúncio: ${url}. Extraia metadados técnicos para imóvel ${type}.`;
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',

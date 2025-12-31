@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Layout from './components/Layout';
 import StepSelection from './components/StepSelection';
 import StepForm from './components/StepForm';
@@ -7,57 +7,14 @@ import LoadingScreen from './components/LoadingScreen';
 import ReportScreen from './components/ReportScreen';
 import LoginScreen from './components/LoginScreen';
 import AdminDashboard from './components/AdminDashboard';
-import ApiKeySetup from './components/ApiKeySetup';
 import { AppStep, PropertyData, PropertyType, ValuationResult } from './types';
 import { generateManualValuation, generateUrbanAutomatedValuation } from './services/valuationService';
 import { INITIAL_PROPERTY_DATA } from './constants';
 
 const App: React.FC = () => {
-  const [currentStep, setCurrentStep] = useState<AppStep>(AppStep.SETUP);
+  const [currentStep, setCurrentStep] = useState<AppStep>(AppStep.SELECTION);
   const [propertyData, setPropertyData] = useState<PropertyData>(INITIAL_PROPERTY_DATA);
   const [valuationResult, setValuationResult] = useState<ValuationResult | null>(null);
-
-  // Verifica se a chave de API é válida
-  const isKeyValid = () => {
-    const key = process.env.API_KEY;
-    return typeof key === 'string' && key.length > 5 && key !== 'undefined';
-  };
-
-  useEffect(() => {
-    checkApiKey();
-  }, []);
-
-  const checkApiKey = async () => {
-    // 1. Se a chave já estiver injetada e for válida, pula o setup
-    if (isKeyValid()) {
-      setCurrentStep(AppStep.SELECTION);
-      return;
-    }
-
-    // 2. Se estiver no ambiente de IA Studio, verifica se já selecionou
-    if (window.aistudio) {
-      try {
-        const hasKey = await window.aistudio.hasSelectedApiKey();
-        if (hasKey) {
-          setCurrentStep(AppStep.SELECTION);
-        } else {
-          setCurrentStep(AppStep.SETUP);
-        }
-      } catch (e) {
-        setCurrentStep(AppStep.SETUP);
-      }
-    } else {
-      // Caso fora do AI Studio e sem chave, obriga o setup
-      setCurrentStep(AppStep.SETUP);
-    }
-  };
-
-  const handleStart = () => {
-    // Após clicar em ativar, dá um tempo pequeno para o ambiente injetar a chave
-    setTimeout(() => {
-      setCurrentStep(AppStep.SELECTION);
-    }, 500);
-  };
 
   const handleTypeSelect = (type: PropertyType) => {
     setPropertyData(prev => ({ ...prev, type }));
@@ -65,13 +22,6 @@ const App: React.FC = () => {
   };
 
   const handleFormSubmit = async (data: PropertyData) => {
-    // Verificação de última hora
-    if (!isKeyValid()) {
-      alert("Chave de API não detectada. Por favor, ative o motor de IA.");
-      setCurrentStep(AppStep.SETUP);
-      return;
-    }
-
     setPropertyData(data);
     setCurrentStep(AppStep.LOADING);
     
@@ -89,14 +39,15 @@ const App: React.FC = () => {
       console.error("Valuation Error:", error);
       const msg = error instanceof Error ? error.message : String(error);
       
-      if (msg.includes("AUTH_REQUIRED") || msg.includes("API Key") || msg.includes("not found")) {
-        alert("Sua conexão com o motor de IA expirou ou é inválida. Vamos reativar.");
-        setCurrentStep(AppStep.SETUP);
+      // Se o erro for de API Key, damos a instrução clara para o dono da plataforma
+      if (msg.includes("API Key") || msg.includes("API_KEY") || msg.includes("403") || msg.includes("invalid_argument")) {
+        alert("CONFIGURAÇÃO NECESSÁRIA: A chave da BANDEIRA AGRO não foi detectada no servidor. Por favor, adicione a variável API_KEY no painel da Vercel e faça um Redeploy.");
+        setCurrentStep(AppStep.FORM);
       } else if (msg.includes("AMOSTRAS_INSUFICIENTES")) {
-        alert("Não encontramos amostras suficientes. Tente outro bairro ou cidade.");
+        alert("Não encontramos amostras suficientes nesta localização. Tente ajustar o bairro ou cidade.");
         setCurrentStep(AppStep.FORM);
       } else {
-        alert(`Erro técnico: ${msg}`);
+        alert(`Ocorreu um problema técnico: ${msg}`);
         setCurrentStep(AppStep.FORM);
       }
     }
@@ -124,9 +75,8 @@ const App: React.FC = () => {
   return (
     <Layout 
       onLoginClick={() => setCurrentStep(AppStep.LOGIN)} 
-      showLoginButton={currentStep !== AppStep.DASHBOARD && currentStep !== AppStep.LOGIN && currentStep !== AppStep.SETUP}
+      showLoginButton={currentStep !== AppStep.DASHBOARD && currentStep !== AppStep.LOGIN}
     >
-      {currentStep === AppStep.SETUP && <ApiKeySetup onConfigured={handleStart} />}
       {currentStep === AppStep.SELECTION && <StepSelection onSelect={handleTypeSelect} />}
       {currentStep === AppStep.FORM && (
         <StepForm 
