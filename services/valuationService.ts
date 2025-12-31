@@ -252,26 +252,40 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
     </div>
 
     <style>
+      .report-wrapper { margin: 0; padding: 0; }
       .report-page { 
         background: white; 
         width: 210mm; 
-        height: 297mm; 
+        height: 296mm; /* Ajustado de 297mm para 296mm para criar buffer de segurança */
         margin: 0 auto; 
         display: flex; 
         flex-direction: column; 
         box-sizing: border-box; 
         box-shadow: 0 0 10px rgba(0,0,0,0.05); 
         page-break-after: always;
+        overflow: hidden;
       }
-      .report-page:last-child {
-        page-break-after: avoid;
+      .report-page:last-of-type {
+        page-break-after: avoid !important;
+        break-after: avoid !important;
       }
       @media print {
-        body { background: white !important; margin: 0 !important; }
-        .report-page { box-shadow: none !important; margin: 0 !important; height: 297mm !important; width: 210mm !important; }
+        body { background: white !important; margin: 0 !important; padding: 0 !important; }
+        .report-page { 
+          box-shadow: none !important; 
+          margin: 0 !important; 
+          height: 296mm !important; 
+          width: 210mm !important; 
+          page-break-after: always !important;
+          break-after: page !important;
+        }
+        .report-page:last-of-type {
+          page-break-after: avoid !important;
+          break-after: avoid !important;
+        }
       }
     </style>
-  `;
+  `.trim();
 
   return {
     reportText: reportHtml,
