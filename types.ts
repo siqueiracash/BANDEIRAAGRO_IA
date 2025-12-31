@@ -40,7 +40,6 @@ export interface GroundingSource {
   uri: string;
 }
 
-// NOVA: Interface para amostra de mercado manual
 export interface MarketSample {
   id: string;
   type: PropertyType;
@@ -52,11 +51,10 @@ export interface MarketSample {
   price: number;
   areaTotal: number;
   areaBuilt?: number;
-  pricePerUnit: number; // Calculado
+  pricePerUnit: number;
   date: string;
   source: string;
-  url?: string; // Novo campo para link direto
-  // Fix: Added missing description property to support AdminDashboard editing and persistence
+  url?: string;
   description?: string;
   
   // Campos Urbanos Específicos
@@ -75,12 +73,10 @@ export interface MarketSample {
   occupation?: string;
   improvements?: string;
   
-  // Novos campos rurais para homogeneização
   landCapability?: string;
   publicImprovements?: string;
 }
 
-// ATUALIZADA: Agora suporta MarketSample ou GroundingSource
 export interface ValuationResult {
   reportText: string;
   sources: (MarketSample | GroundingSource)[];
@@ -88,10 +84,11 @@ export interface ValuationResult {
 }
 
 export enum AppStep {
+  SETUP = -1,     // Novo: Verificação de Chave
   SELECTION = 0,
   FORM = 1,
   LOADING = 2,
   RESULT = 3,
-  LOGIN = 4,      // Nova etapa
-  DASHBOARD = 5   // Nova etapa
+  LOGIN = 4,
+  DASHBOARD = 5
 }

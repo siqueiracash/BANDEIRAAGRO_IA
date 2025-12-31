@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Layout from './components/Layout';
 import StepSelection from './components/StepSelection';
 import StepForm from './components/StepForm';
@@ -7,14 +7,44 @@ import LoadingScreen from './components/LoadingScreen';
 import ReportScreen from './components/ReportScreen';
 import LoginScreen from './components/LoginScreen';
 import AdminDashboard from './components/AdminDashboard';
+import ApiKeySetup from './components/ApiKeySetup';
 import { AppStep, PropertyData, PropertyType, ValuationResult } from './types';
 import { generateManualValuation, generateUrbanAutomatedValuation } from './services/valuationService';
 import { INITIAL_PROPERTY_DATA } from './constants';
 
 const App: React.FC = () => {
-  const [currentStep, setCurrentStep] = useState<AppStep>(AppStep.SELECTION);
+  const [currentStep, setCurrentStep] = useState<AppStep>(AppStep.SETUP);
   const [propertyData, setPropertyData] = useState<PropertyData>(INITIAL_PROPERTY_DATA);
   const [valuationResult, setValuationResult] = useState<ValuationResult | null>(null);
+
+  useEffect(() => {
+    checkApiKey();
+  }, []);
+
+  const checkApiKey = async () => {
+    // Se a chave já estiver no process.env, pula o setup
+    if (process.env.API_KEY) {
+      setCurrentStep(AppStep.SELECTION);
+      return;
+    }
+
+    // Caso contrário, verifica via helper do AI Studio se disponível
+    if (window.aistudio) {
+      const hasKey = await window.aistudio.hasSelectedApiKey();
+      if (hasKey) {
+        setCurrentStep(AppStep.SELECTION);
+      } else {
+        setCurrentStep(AppStep.SETUP);
+      }
+    } else {
+      // Fora do AI Studio, assume que o usuário configurará via env ou prossegue
+      setCurrentStep(AppStep.SELECTION);
+    }
+  };
+
+  const handleStart = () => {
+    setCurrentStep(AppStep.SELECTION);
+  };
 
   const handleTypeSelect = (type: PropertyType) => {
     setPropertyData(prev => ({ ...prev, type }));
@@ -39,13 +69,16 @@ const App: React.FC = () => {
       console.error(error);
       const msg = error instanceof Error ? error.message : "Erro desconhecido";
       
-      if (msg.includes("AMOSTRAS_INSUFICIENTES")) {
+      if (msg.includes("Requested entity was not found")) {
+        alert("Sua chave de API expirou ou é inválida. Por favor, selecione-a novamente.");
+        setCurrentStep(AppStep.SETUP);
+      } else if (msg.includes("AMOSTRAS_INSUFICIENTES")) {
         alert("Não encontramos amostras suficientes para uma avaliação segura neste local.");
+        setCurrentStep(AppStep.FORM);
       } else {
         alert(`Erro ao processar a avaliação: ${msg}`);
+        setCurrentStep(AppStep.FORM);
       }
-      
-      setCurrentStep(AppStep.FORM);
     }
   };
 
@@ -71,8 +104,9 @@ const App: React.FC = () => {
   return (
     <Layout 
       onLoginClick={() => setCurrentStep(AppStep.LOGIN)} 
-      showLoginButton={currentStep !== AppStep.DASHBOARD && currentStep !== AppStep.LOGIN}
+      showLoginButton={currentStep !== AppStep.DASHBOARD && currentStep !== AppStep.LOGIN && currentStep !== AppStep.SETUP}
     >
+      {currentStep === AppStep.SETUP && <ApiKeySetup onConfigured={handleStart} />}
       {currentStep === AppStep.SELECTION && <StepSelection onSelect={handleTypeSelect} />}
       {currentStep === AppStep.FORM && (
         <StepForm 
