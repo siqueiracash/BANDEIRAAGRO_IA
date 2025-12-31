@@ -20,18 +20,14 @@ const App: React.FC = () => {
   // Verifica se o usuário já selecionou uma chave de API
   useEffect(() => {
     const checkKey = async () => {
-      console.log("Checando disponibilidade de API Key...");
       try {
         if ((window as any).aistudio) {
           const selected = await (window as any).aistudio.hasSelectedApiKey();
           setHasApiKey(selected);
         } else {
-          // Fallback para desenvolvimento ou se a chave já estiver no ambiente
-          const envKey = !!process.env.API_KEY;
-          setHasApiKey(envKey);
+          setHasApiKey(!!process.env.API_KEY);
         }
       } catch (e) {
-        console.warn("Erro ao checar API Key:", e);
         setHasApiKey(!!process.env.API_KEY);
       }
     };
@@ -39,17 +35,12 @@ const App: React.FC = () => {
   }, []);
 
   const handleActivateKey = async () => {
-    console.log("Tentando ativar motor de IA...");
     try {
       if ((window as any).aistudio) {
         await (window as any).aistudio.openSelectKey();
-      } else {
-        console.warn("Objeto aistudio não detectado. Prosseguindo com chaves de ambiente.");
       }
-    } catch (e) {
-      console.error("Erro ao abrir seletor de chaves:", e);
     } finally {
-      // Como manda a diretriz: Assuma sucesso e prossiga imediatamente
+      // Prossiga imediatamente após a tentativa, conforme diretrizes
       setHasApiKey(true);
     }
   };
@@ -77,15 +68,17 @@ const App: React.FC = () => {
       console.error("Valuation Error:", error);
       const msg = error.message || String(error);
       
-      // Se falhar por causa da chave, reseta o estado para mostrar o seletor novamente
-      if (msg.includes("API key") || msg.includes("set when running") || msg.includes("401") || msg.includes("403")) {
+      // Regra oficial: Se a entidade não for encontrada ou houver erro de permissão definitivo, resetamos a chave
+      if (msg.includes("Requested entity was not found") || msg.includes("API key not found")) {
         setHasApiKey(false);
         setCurrentStep(AppStep.FORM);
       } else if (msg.includes("AMOSTRAS_INSUFICIENTES")) {
-        alert("A IA não localizou amostras suficientes nesta região. Tente ampliar a área de busca.");
+        alert("A IA não localizou amostras suficientes nesta região exata. O sistema tentará uma busca ampliada.");
+        // Se falhar mesmo assim, volta ao formulário
         setCurrentStep(AppStep.FORM);
       } else {
-        alert(`Ocorreu um problema: ${msg}`);
+        // Para outros erros, tentamos manter o usuário no formulário para revisão sem forçar reativação de chave
+        alert(`Atenção: Houve um problema na busca de dados (Portais podem estar instáveis). Detalhes: ${msg}`);
         setCurrentStep(AppStep.FORM);
       }
     }
@@ -103,7 +96,6 @@ const App: React.FC = () => {
     setPropertyData(INITIAL_PROPERTY_DATA);
   };
 
-  // Enquanto verifica a chave, não mostra nada para evitar flicker
   if (hasApiKey === null) return null;
 
   return (
