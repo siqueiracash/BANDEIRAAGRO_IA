@@ -171,14 +171,15 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
           <div class="space-y-6">
             ${chunk.map((s, i) => `
               <div class="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                <div class="bg-[#f9fafb] px-5 py-3 flex justify-between items-center text-[9px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-200">
+                <!-- Faixa Verde Superior Conforme Solicitado -->
+                <div class="bg-[#15803d] px-5 py-3 flex justify-between items-center text-[10px] font-bold text-white uppercase tracking-widest">
                   <span>AMOSTRA #${(pIdx * 3) + i + 1}</span>
                   <span class="flex-1 text-center px-4">${s.city.toUpperCase()} - ${s.state}</span>
-                  <span>OFERTA (0,90)</span>
+                  <span class="bg-black bg-opacity-20 px-3 py-1 rounded text-[9px]">OFERTA (0,90)</span>
                 </div>
                 <div class="grid grid-cols-2 text-[11px]">
                   <div class="p-3 border-r border-b border-gray-50"><p class="text-[8px] font-bold text-gray-400 uppercase mb-0.5">LOCALIZAÇÃO</p><p class="font-bold">${s.neighborhood || s.city}</p></div>
-                  <div class="p-3 border-b border-gray-50"><p class="text-[8px] font-bold text-gray-400 uppercase mb-0.5">FONTE</p><p class="text-blue-600 truncate">${s.source || 'OLX'}</p></div>
+                  <div class="p-3 border-b border-gray-50"><p class="text-[8px] font-bold text-gray-400 uppercase mb-0.5">FONTE</p><p class="text-blue-600 truncate">${s.source || 'Portal'}</p></div>
                   <div class="p-3 border-r border-b border-gray-50"><p class="text-[8px] font-bold text-gray-400 uppercase mb-0.5">ÁREA TOTAL</p><p class="font-bold text-[13px]">${s.areaTotal} ${unit}</p></div>
                   <div class="p-3 border-b border-gray-50"><p class="text-[8px] font-bold text-gray-400 uppercase mb-0.5">VALOR TOTAL</p><p class="font-bold text-[13px]">${fmt.format(s.price)}</p></div>
                   <div class="p-3 border-r border-gray-50"><p class="text-[8px] font-bold text-gray-400 uppercase mb-0.5">DESCRIÇÃO</p><p class="text-gray-500 line-clamp-1 italic">${s.description || 'Imóvel disponível.'}</p></div>
@@ -187,14 +188,14 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
               </div>
             `).join('')}
           </div>
-          <div class="mt-auto pt-8 text-center text-gray-200 text-[9px] font-bold uppercase tracking-[0.3em]">BANDEIRA AGRO - INTELIGÊNCIA EM AVALIAÇÕES</div>
+          <div class="mt-auto pt-8 text-center text-gray-300 text-[9px] font-bold uppercase tracking-[0.3em]">BANDEIRA AGRO - INTELIGÊNCIA EM AVALIAÇÕES</div>
         </div>
       `).join('')}
 
-      <!-- PÁGINA 7: MEMÓRIA DE CÁLCULO (Ajuste de Spacing e Visual) -->
+      <!-- PÁGINA 7: MEMÓRIA DE CÁLCULO -->
       <div class="report-page px-16 py-12 flex flex-col">
         <h2 class="text-[20px] font-serif font-bold text-gray-900 mb-1 uppercase tracking-wide">ANEXO: MEMÓRIA DE CÁLCULO</h2>
-        <h3 class="text-[24px] font-serif text-gray-300 mb-10 uppercase tracking-[0.15em]">PROCESSAMENTO ESTATÍSTICO</h3>
+        <h3 class="text-[24px] font-serif text-gray-300 mb-8 uppercase tracking-[0.15em]">PROCESSAMENTO ESTATÍSTICO</h3>
         
         <div class="mb-6">
           <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">ELEMENTOS COLETADOS</p>
