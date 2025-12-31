@@ -20,18 +20,31 @@ const chunkArray = <T>(array: T[], size: number): T[][] => {
 
 /**
  * Realiza os cálculos estatísticos e formata o laudo conforme o padrão BANDEIRA AGRO
+ * Utiliza exatamente as 6 melhores amostras conforme solicitado.
  */
 const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): ValuationResult => {
-  if (pool.length === 0) {
+  if (pool.length < 3) {
     throw new Error("AMOSTRAS_INSUFICIENTES");
   }
 
-  // 1. Tratamento das Amostras e Homogeneização
-  const processedSamples = pool.map(s => {
+  // 1. Seleção das 6 melhores amostras (as mais próximas da média para maior precisão estatística)
+  // Primeiro calculamos a média bruta para filtrar outliers se houver muitos dados
+  const rawAvg = pool.reduce((a, b) => a + (b.price / b.areaTotal), 0) / pool.length;
+  const sortedPool = [...pool].sort((a, b) => {
+    const diffA = Math.abs((a.price / a.areaTotal) - rawAvg);
+    const diffB = Math.abs((b.price / b.areaTotal) - rawAvg);
+    return diffA - diffB;
+  });
+
+  // Pegamos as 6 melhores (ou todas se tiver menos de 6, mas o ideal é 6)
+  const finalPool = sortedPool.slice(0, 6);
+
+  // 2. Tratamento das Amostras e Homogeneização
+  const processedSamples = finalPool.map(s => {
     const adjustedPrice = s.price * OFFER_FACTOR;
     const adjustedPricePerUnit = adjustedPrice / s.areaTotal;
     
-    // Fatores de Homogeneização
+    // Fatores de Homogeneização padrão BANDEIRA AGRO
     const fOferta = OFFER_FACTOR;
     const fDim = 1.00;
     const fCap = data.type === PropertyType.RURAL ? 1.27 : 1.00;
@@ -53,7 +66,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
   const avgVuh = vuhValues.reduce((a, b) => a + b, 0) / vuhValues.length;
   const finalValue = avgVuh * data.areaTotal;
 
-  // 2. Cálculo de Liquidação Forçada
+  // 3. Cálculo de Liquidação Forçada
   const factorLF = 1 / Math.pow((1 + INTEREST_RATE), ABSORPTION_MONTHS);
   const liquidationValue = finalValue * factorLF;
 
@@ -65,13 +78,13 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
   const formatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
   const unitLabel = data.type === PropertyType.URBAN ? 'm²' : 'ha';
 
-  // Divide as amostras em grupos de 3 para as fichas de pesquisa
+  // Divide as 6 amostras em grupos de 3 para as fichas de pesquisa (resultará em 2 páginas de fichas)
   const sampleChunks = chunkArray(processedSamples, 3);
 
   const reportHtml = `
     <div class="report-wrapper bg-white text-gray-900 font-sans">
       
-      <!-- PÁGINA: CAPA -->
+      <!-- PÁGINA 1: CAPA -->
       <div class="report-page report-cover flex flex-col items-center justify-between">
         <div class="mt-10 text-center">
           <div class="mb-4 flex justify-center">
@@ -111,7 +124,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         </div>
       </div>
 
-      <!-- PÁGINA: RESUMO DA AVALIAÇÃO -->
+      <!-- PÁGINA 2: RESUMO DA AVALIAÇÃO -->
       <div class="report-page">
         <h2 class="text-3xl font-serif font-bold text-agro-900 text-center mb-4 uppercase tracking-widest">RESUMO DA AVALIAÇÃO</h2>
         <div class="w-16 h-1 bg-gray-300 mx-auto mb-16"></div>
@@ -134,15 +147,15 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
 
           <div>
             <h3 class="font-bold text-gray-500 uppercase text-xs tracking-[0.2em] mb-2">ÁREAS</h3>
-            <p class="text-xl text-gray-800 font-bold">Área Total: ${data.areaTotal.toLocaleString('pt-BR')} ${unitLabel}</p>
+            <p class="text-xl text-gray-800 font-bold uppercase tracking-tighter">Área Total: ${data.areaTotal.toLocaleString('pt-BR')} ${unitLabel}</p>
           </div>
         </div>
 
-        <div class="mt-16 text-center">
+        <div class="mt-12 text-center">
           <h3 class="font-bold text-gray-900 uppercase text-sm tracking-[0.3em] mb-10">RESUMO DE VALORES</h3>
           <div class="space-y-6">
-            <p class="text-2xl text-gray-600 uppercase tracking-tight">Valor de Mercado: <span class="text-gray-900 font-bold">${formatter.format(finalValue)}</span></p>
-            <p class="text-2xl text-gray-600 uppercase tracking-tight">Valor de Liquidação Forçada: <span class="text-gray-900 font-bold">${formatter.format(liquidationValue)}</span></p>
+            <p class="text-2xl text-gray-600 uppercase">Valor de Mercado: <span class="text-gray-900 font-bold">${formatter.format(finalValue)}</span></p>
+            <p class="text-2xl text-gray-600 uppercase">Valor de Liquidação Forçada: <span class="text-gray-900 font-bold">${formatter.format(liquidationValue)}</span></p>
           </div>
         </div>
 
@@ -152,7 +165,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         </div>
       </div>
 
-      <!-- PÁGINA: METODOLOGIA E CRITÉRIO -->
+      <!-- PÁGINA 3: METODOLOGIA E CRITÉRIO -->
       <div class="report-page text-gray-700 leading-relaxed">
         <h2 class="text-xl font-bold mb-6 uppercase">METODOLOGIA GERAL DE AVALIAÇÃO</h2>
         <p class="mb-10 text-justify">
@@ -176,7 +189,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         </p>
       </div>
 
-      <!-- PÁGINA: LIQUIDAÇÃO FORÇADA DETALHES -->
+      <!-- PÁGINA 4: LIQUIDAÇÃO FORÇADA DETALHES -->
       <div class="report-page">
         <h2 class="text-xl font-bold mb-10 uppercase">VALOR PARA LIQUIDAÇÃO FORÇADA</h2>
         <p class="mb-8 text-justify">Para a determinação do “Valor de Liquidação do Imóvel” foram adotados os preceitos constantes do trabalho técnico mencionado.</p>
@@ -198,13 +211,13 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         </div>
       </div>
 
-      <!-- ANEXO: FICHAS DE PESQUISA (PAGINADO) -->
+      <!-- ANEXO: FICHAS DE PESQUISA (MÁXIMO 3 POR PÁGINA) -->
       ${sampleChunks.map((chunk, chunkIdx) => `
-        <div class="report-page h-auto min-h-[297mm]">
-          <h2 class="text-xl font-bold mb-2 uppercase">ANEXO: FICHAS DE PESQUISA ${sampleChunks.length > 1 ? `(Pág. ${chunkIdx + 1}/${sampleChunks.length})` : ''}</h2>
+        <div class="report-page h-auto">
+          <h2 class="text-xl font-bold mb-2 uppercase">ANEXO: FICHAS DE PESQUISA</h2>
           <h3 class="text-2xl font-serif text-gray-400 mb-10 tracking-widest uppercase">DETALHAMENTO DO MERCADO</h3>
           
-          <div class="space-y-6 pb-12">
+          <div class="space-y-6 pb-16">
             ${chunk.map((s, idx) => `
               <div class="border border-gray-200 rounded-xl overflow-hidden shadow-sm page-break-avoid">
                 <div class="bg-agro-700 text-white p-3 flex justify-between items-center">
@@ -249,13 +262,13 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
             `).join('')}
           </div>
           
-          <div class="mt-auto text-center pb-10 no-print-content">
-             <p class="text-[9px] text-gray-400 uppercase tracking-widest">Bandeira Agro - Inteligência Imobiliária</p>
+          <div class="mt-auto text-center pb-10">
+             <p class="text-[9px] text-gray-300 uppercase tracking-widest font-bold">Página ${chunkIdx + 5} - BANDEIRA AGRO</p>
           </div>
         </div>
       `).join('')}
 
-      <!-- ANEXO: MEMÓRIA DE CÁLCULO (FORÇADA EM NOVA PÁGINA) -->
+      <!-- ANEXO: MEMÓRIA DE CÁLCULO (INICIA SEMPRE EM NOVA PÁGINA) -->
       <div class="report-page h-auto page-start-new">
         <h2 class="text-xl font-bold mb-2 uppercase">ANEXO: MEMÓRIA DE CÁLCULO</h2>
         <h3 class="text-2xl font-serif text-gray-400 mb-8 tracking-widest uppercase">PROCESSAMENTO ESTATÍSTICO</h3>
@@ -320,7 +333,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
           </table>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-sm pt-4 border-t border-gray-100 pb-20">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-sm pt-4 border-t border-gray-100 pb-24">
           <div class="space-y-2">
              <p class="flex justify-between border-b pb-1 text-xs uppercase tracking-tight"><span>Média</span> <span class="font-bold text-agro-900">${formatter.format(avgVuh)}</span></p>
              <p class="flex justify-between border-b pb-1 text-xs uppercase tracking-tight"><span>Desvio Padrão</span> <span class="font-bold text-agro-900">${formatter.format(stdDev)}</span></p>
@@ -335,10 +348,6 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
                <p class="flex justify-between border-t pt-1 mt-1 uppercase tracking-tighter"><span>Amplitude</span> <span class="font-bold text-agro-700">${formatter.format(avgVuh * 0.30)}</span></p>
             </div>
           </div>
-        </div>
-
-        <div class="mt-auto text-center pb-10 uppercase text-[8px] text-gray-300 tracking-[0.3em]">
-           BANDEIRA AGRO - INTELIGÊNCIA EM AVALIAÇÕES
         </div>
       </div>
 
@@ -378,7 +387,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         margin: 0 auto;
         box-shadow: 0 0 10px rgba(0,0,0,0.1);
         padding: 20mm;
-        padding-bottom: 45mm; /* Espaço generoso no rodapé para evitar problemas de corte */
+        padding-bottom: 45mm; /* Proteção do rodapé */
         display: flex;
         flex-direction: column;
         box-sizing: border-box;
@@ -420,12 +429,12 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
 
   return {
     reportText: reportHtml,
-    sources: pool,
+    sources: processedSamples,
     estimatedValue: formatter.format(finalValue),
     liquidationValue: formatter.format(liquidationValue),
     stats: {
       average: avgVuh,
-      sampleCount: pool.length,
+      sampleCount: processedSamples.length,
       standardDeviation: formatter.format(stdDev)
     }
   };
@@ -433,18 +442,29 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
 
 export const performValuation = async (data: PropertyData): Promise<ValuationResult> => {
   let pool: MarketSample[] = [];
+  
+  // 1. Busca no banco de dados local/supabase
   pool = await filterSamples(data.type, data.city, data.state, data.type === PropertyType.RURAL ? data.ruralActivity : data.urbanSubType);
-  if (pool.length < 5) {
+  
+  // 2. Complementa com IA se necessário para atingir o mínimo de amostras qualificadas
+  if (pool.length < 8) {
     const aiSamples = await findMarketSamplesIA(data);
-    if (aiSamples.length < 3) {
-      const deepSamples = await findMarketSamplesIA(data, true);
-      pool = [...pool, ...deepSamples];
-    } else {
-      pool = [...pool, ...aiSamples];
-    }
-    aiSamples.forEach(sample => { saveSample(sample).catch(() => {}); });
+    // Adiciona apenas as que não são duplicadas por URL
+    const existingUrls = new Set(pool.filter(s => !!s.url).map(s => s.url));
+    const newAiSamples = aiSamples.filter(s => !s.url || !existingUrls.has(s.url));
+    
+    pool = [...pool, ...newAiSamples];
+    
+    // Salva as novas amostras encontradas pela IA para o banco de dados
+    newAiSamples.forEach(sample => { saveSample(sample).catch(() => {}); });
   }
-  const uniquePool = pool.filter((v, i, a) => a.findIndex(t => (t.url && t.url === v.url) || t.id === v.id) === i);
+
+  // Remove duplicados finais e garante dados válidos
+  const uniquePool = pool.filter((v, i, a) => 
+    v.price > 0 && v.areaTotal > 0 && 
+    a.findIndex(t => (t.url && t.url === v.url) || t.id === v.id) === i
+  );
+
   return calculateAndGenerateReport(data, uniquePool);
 };
 
