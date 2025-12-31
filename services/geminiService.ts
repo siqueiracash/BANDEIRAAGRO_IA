@@ -3,12 +3,17 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { PropertyData, MarketSample, PropertyType } from "../types";
 
 /**
- * Busca Amostras com Integração Profunda em Portais
- * Criamos a instância da IA no momento da chamada para garantir que use a chave injetada.
+ * Busca Amostras com Integração Profunda em Portais utilizando o SDK Gemini.
+ * A instância é criada dentro da função para garantir o acesso ao process.env.API_KEY mais atual.
  */
 export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = false): Promise<MarketSample[]> => {
-  // A chave é obtida diretamente do ambiente no momento da execução
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+  const apiKey = process.env.API_KEY;
+  
+  if (!apiKey) {
+    throw new Error("API_KEY_REQUIRED");
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
   
   const locationContext = isDeepSearch 
     ? `${data.city} ${data.state} (bairros limítrofes ao ${data.neighborhood || 'Centro'})`
@@ -16,7 +21,7 @@ export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = fal
 
   const prompt = `
     Aja como um Perito Avaliador Imobiliário sênior da BANDEIRA AGRO.
-    Objetivo: Encontrar 15 amostras REAIS e ATUAIS de venda de ${data.urbanSubType || data.ruralActivity} em ${locationContext}.
+    Objetivo: Encontrar amostras REAIS e ATUAIS de venda de ${data.urbanSubType || data.ruralActivity} em ${locationContext}.
     FONTES OBRIGATÓRIAS: Imovelweb, Zap Imóveis, VivaReal e OLX.
     REGRAS DE FILTRO: 
     1. Ignore anúncios de aluguel. 
@@ -85,7 +90,10 @@ export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = fal
  * Extrai dados técnicos de uma URL de anúncio via IA
  */
 export const extractSampleFromUrl = async (url: string, type: PropertyType): Promise<Partial<MarketSample> | null> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) return null;
+
+  const ai = new GoogleGenAI({ apiKey });
   
   try {
     const prompt = `Analise detalhadamente o anúncio deste link: ${url}. Extraia metadados técnicos específicos para um imóvel do tipo ${type}.`;
