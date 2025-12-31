@@ -18,35 +18,28 @@ const App: React.FC = () => {
   const [valuationResult, setValuationResult] = useState<ValuationResult | null>(null);
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
 
-  // Verificação inicial segura
   useEffect(() => {
     const checkKey = async () => {
-      try {
-        if ((window as any).aistudio) {
-          const selected = await (window as any).aistudio.hasSelectedApiKey();
-          setHasApiKey(selected);
-        } else {
-          // Em produção (Vercel), a chave virá do process.env no servidor
-          setHasApiKey(!!process.env.API_KEY);
-        }
-      } catch (e) {
-        setHasApiKey(false);
+      // Se estivermos no Vercel (hostname sem 'localhost' e sem aistudio), 
+      // assumimos que o servidor tem a chave.
+      const isAistudio = !!(window as any).aistudio;
+      
+      if (isAistudio) {
+        const selected = await (window as any).aistudio.hasSelectedApiKey();
+        setHasApiKey(selected);
+      } else {
+        // Em produção, a "chave" é a existência da nossa própria API interna
+        setHasApiKey(true); 
       }
     };
     checkKey();
   }, []);
-
-  const handleTypeSelect = (type: PropertyType) => {
-    setPropertyData(prev => ({ ...prev, type }));
-    setCurrentStep(AppStep.FORM);
-  };
 
   const handleFormSubmit = async (data: PropertyData) => {
     setPropertyData(data);
     setCurrentStep(AppStep.LOADING);
     
     try {
-      // Chamada para o nosso Valuation Service que agora consome o Bridge Seguro
       let result;
       if (data.type === PropertyType.RURAL) {
         result = await generateManualValuation(data);
@@ -60,18 +53,19 @@ const App: React.FC = () => {
       console.error("Erro na Requisição:", error);
       const msg = error.message || String(error);
       
-      // Tratamento de erro de autenticação vindo do simulador de backend
-      const isAuthError = msg.includes("API_KEY_REQUIRED") || msg.includes("401") || msg.includes("403");
-
-      if (isAuthError) {
-        setHasApiKey(false);
-        setCurrentStep(AppStep.FORM);
-        alert("A autenticação com o motor de IA falhou. Por favor, verifique a chave no servidor.");
+      if (msg.includes("API_KEY_MISSING_ON_SERVER")) {
+        alert("Erro de Configuração: A chave API_KEY não foi encontrada no servidor Vercel. Adicione-a nas Environment Variables do projeto.");
       } else {
-        alert(`Ocorreu um problema no processamento: ${msg}`);
-        setCurrentStep(AppStep.FORM);
+        alert(`Ocorreu um problema: ${msg}`);
       }
+      setCurrentStep(AppStep.FORM);
     }
+  };
+
+  // Add handleTypeSelect to fix "Cannot find name 'handleTypeSelect'" error
+  const handleTypeSelect = (type: PropertyType) => {
+    setPropertyData({ ...INITIAL_PROPERTY_DATA, type });
+    setCurrentStep(AppStep.FORM);
   };
 
   const handleReset = () => {
