@@ -20,15 +20,12 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const checkKey = async () => {
-      // Se estivermos no Vercel (hostname sem 'localhost' e sem aistudio), 
-      // assumimos que o servidor tem a chave.
       const isAistudio = !!(window as any).aistudio;
-      
       if (isAistudio) {
         const selected = await (window as any).aistudio.hasSelectedApiKey();
         setHasApiKey(selected);
       } else {
-        // Em produção, a "chave" é a existência da nossa própria API interna
+        // Em produção, se a variável de ambiente existir, liberamos
         setHasApiKey(true); 
       }
     };
@@ -53,16 +50,18 @@ const App: React.FC = () => {
       console.error("Erro na Requisição:", error);
       const msg = error.message || String(error);
       
-      if (msg.includes("API_KEY_MISSING_ON_SERVER")) {
-        alert("Erro de Configuração: A chave API_KEY não foi encontrada no servidor Vercel. Adicione-a nas Environment Variables do projeto.");
+      if (msg.includes("API_KEY_REQUIRED") || msg.includes("MISSING")) {
+        alert("Configuração Necessária: Ative a IA clicando no botão de ativação ou configure a chave no servidor.");
+        setHasApiKey(false);
+      } else if (msg.includes("AMOSTRAS_INSUFICIENTES")) {
+        alert("Não encontramos amostras suficientes em portais digitais para esta região no momento. Tente novamente em instantes.");
       } else {
-        alert(`Ocorreu um problema: ${msg}`);
+        alert(`Não foi possível completar a avaliação: ${msg}`);
       }
       setCurrentStep(AppStep.FORM);
     }
   };
 
-  // Add handleTypeSelect to fix "Cannot find name 'handleTypeSelect'" error
   const handleTypeSelect = (type: PropertyType) => {
     setPropertyData({ ...INITIAL_PROPERTY_DATA, type });
     setCurrentStep(AppStep.FORM);
