@@ -17,13 +17,14 @@ const App: React.FC = () => {
   const [valuationResult, setValuationResult] = useState<ValuationResult | null>(null);
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
 
-  // Verifica se o usuário já selecionou uma chave de API
+  // Verifica se o usuário já selecionou uma chave de API no carregamento
   useEffect(() => {
     const checkKey = async () => {
       try {
         if ((window as any).aistudio) {
           const selected = await (window as any).aistudio.hasSelectedApiKey();
-          setHasApiKey(selected);
+          // Além de checar o dialog, checamos se a variável de ambiente está presente
+          setHasApiKey(selected && !!process.env.API_KEY);
         } else {
           setHasApiKey(!!process.env.API_KEY);
         }
@@ -40,8 +41,8 @@ const App: React.FC = () => {
         await (window as any).aistudio.openSelectKey();
       }
     } finally {
-      // Prossiga imediatamente após a tentativa, conforme diretrizes
-      setHasApiKey(true);
+      // Pequeno atraso para o ambiente injetar a chave antes de liberar a tela
+      setTimeout(() => setHasApiKey(true), 500);
     }
   };
 
@@ -51,6 +52,12 @@ const App: React.FC = () => {
   };
 
   const handleFormSubmit = async (data: PropertyData) => {
+    // Verificação de segurança de última milha
+    if (!process.env.API_KEY) {
+      setHasApiKey(false);
+      return;
+    }
+
     setPropertyData(data);
     setCurrentStep(AppStep.LOADING);
     
@@ -68,17 +75,21 @@ const App: React.FC = () => {
       console.error("Valuation Error:", error);
       const msg = error.message || String(error);
       
-      // Regra oficial: Se a entidade não for encontrada ou houver erro de permissão definitivo, resetamos a chave
-      if (msg.includes("Requested entity was not found") || msg.includes("API key not found")) {
+      // Captura erros de chave ausente ou inválida e reseta para a tela de ativação
+      if (
+        msg.includes("MISSING_API_KEY") || 
+        msg.includes("API Key must be set") || 
+        msg.includes("Requested entity was not found") || 
+        msg.includes("401") || 
+        msg.includes("403")
+      ) {
         setHasApiKey(false);
         setCurrentStep(AppStep.FORM);
       } else if (msg.includes("AMOSTRAS_INSUFICIENTES")) {
-        alert("A IA não localizou amostras suficientes nesta região exata. O sistema tentará uma busca ampliada.");
-        // Se falhar mesmo assim, volta ao formulário
+        alert("A IA não localizou amostras suficientes nesta região. Tente ampliar a área de busca ou conferir o bairro.");
         setCurrentStep(AppStep.FORM);
       } else {
-        // Para outros erros, tentamos manter o usuário no formulário para revisão sem forçar reativação de chave
-        alert(`Atenção: Houve um problema na busca de dados (Portais podem estar instáveis). Detalhes: ${msg}`);
+        alert(`Ocorreu um problema técnico: ${msg}`);
         setCurrentStep(AppStep.FORM);
       }
     }
