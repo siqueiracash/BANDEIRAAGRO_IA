@@ -2,20 +2,12 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { PropertyData, PropertyType, MarketSample } from "../types";
 
-// Função para obter o cliente sempre com a chave atualizada do process.env
-const getAIClient = () => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    throw new Error("A chave de API não foi configurada. Por favor, clique em 'Habilitar Inteligência Artificial' no topo da página.");
-  }
-  return new GoogleGenAI({ apiKey });
-};
-
 /**
  * Busca Amostras com Integração Profunda em Portais (Imovelweb, Zap, VivaReal, OLX)
  */
 export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = false): Promise<MarketSample[]> => {
-  const ai = getAIClient();
+  // Inicialização direta conforme diretrizes
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const locationContext = isDeepSearch 
     ? `${data.city} ${data.state} (bairros próximos ao ${data.neighborhood || 'Centro'})`
@@ -89,7 +81,7 @@ export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = fal
 
   } catch (error) {
     console.error("Erro na busca integrada:", error);
-    throw error; // Re-lança para ser capturado no App.tsx e tratar a chave
+    throw error;
   }
 };
 
@@ -97,7 +89,7 @@ export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = fal
  * Extrai dados técnicos de uma URL de anúncio usando IA com Search Grounding
  */
 export const extractSampleFromUrl = async (url: string, type: PropertyType): Promise<Partial<MarketSample> | null> => {
-  const ai = getAIClient();
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const prompt = `
     Analise rigorosamente o anúncio de imóvel no link: ${url}
