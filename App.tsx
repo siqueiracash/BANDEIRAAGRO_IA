@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Layout from './components/Layout';
 import StepSelection from './components/StepSelection';
 import StepForm from './components/StepForm';
@@ -15,6 +15,28 @@ const App: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<AppStep>(AppStep.SELECTION);
   const [propertyData, setPropertyData] = useState<PropertyData>(INITIAL_PROPERTY_DATA);
   const [valuationResult, setValuationResult] = useState<ValuationResult | null>(null);
+  const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
+
+  // Verifica se o usuário já selecionou uma chave de API
+  useEffect(() => {
+    const checkKey = async () => {
+      if ((window as any).aistudio) {
+        const selected = await (window as any).aistudio.hasSelectedApiKey();
+        setHasApiKey(selected);
+      } else {
+        // Fallback para desenvolvimento local se process.env.API_KEY existir
+        setHasApiKey(!!process.env.API_KEY);
+      }
+    };
+    checkKey();
+  }, []);
+
+  const handleActivateKey = async () => {
+    if ((window as any).aistudio) {
+      await (window as any).aistudio.openSelectKey();
+      setHasApiKey(true);
+    }
+  };
 
   const handleTypeSelect = (type: PropertyType) => {
     setPropertyData(prev => ({ ...prev, type }));
@@ -39,26 +61,17 @@ const App: React.FC = () => {
       console.error("Valuation Error:", error);
       const msg = error.message || String(error);
       
-      if (msg.includes("403") || msg.includes("API key") || msg.includes("invalid_argument")) {
-        alert("ERRO DE CONFIGURAÇÃO: A chave de API da Bandeira Agro não foi detectada. Certifique-se de adicioná-la no painel da Vercel como API_KEY e realizar um 'Redeploy'.");
+      if (msg.includes("API key") || msg.includes("set when running")) {
+        setHasApiKey(false);
         setCurrentStep(AppStep.FORM);
       } else if (msg.includes("AMOSTRAS_INSUFICIENTES")) {
-        alert("A IA não localizou amostras suficientes nesta região. Tente ampliar a área de busca ou conferir o nome da cidade.");
+        alert("A IA não localizou amostras suficientes nesta região. Tente ampliar a área de busca.");
         setCurrentStep(AppStep.FORM);
       } else {
-        alert(`Ocorreu um problema inesperado: ${msg}. Tente novamente.`);
+        alert(`Ocorreu um problema: ${msg}`);
         setCurrentStep(AppStep.FORM);
       }
     }
-  };
-
-  const handleBackToSelection = () => {
-    setCurrentStep(AppStep.SELECTION);
-    setPropertyData(INITIAL_PROPERTY_DATA);
-  };
-
-  const handleReview = () => {
-    setCurrentStep(AppStep.FORM);
   };
 
   const handleReset = () => {
@@ -67,36 +80,66 @@ const App: React.FC = () => {
     setValuationResult(null);
   };
 
-  const handleLoginSuccess = () => {
-    setCurrentStep(AppStep.DASHBOARD);
+  const handleReview = () => setCurrentStep(AppStep.FORM);
+  const handleBackToSelection = () => {
+    setCurrentStep(AppStep.SELECTION);
+    setPropertyData(INITIAL_PROPERTY_DATA);
   };
+
+  // Enquanto verifica a chave, não mostra nada para evitar flicker
+  if (hasApiKey === null) return null;
 
   return (
     <Layout 
       onLoginClick={() => setCurrentStep(AppStep.LOGIN)} 
       showLoginButton={currentStep !== AppStep.DASHBOARD && currentStep !== AppStep.LOGIN}
     >
-      {currentStep === AppStep.SELECTION && <StepSelection onSelect={handleTypeSelect} />}
-      {currentStep === AppStep.FORM && (
-        <StepForm 
-          propertyType={propertyData.type} 
-          initialData={propertyData}
-          onSubmit={handleFormSubmit} 
-          onBack={handleBackToSelection} 
-        />
+      {!hasApiKey ? (
+        <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl p-10 text-center animate-fade-in border border-gray-100 mt-12">
+          <div className="mb-8">
+            <div className="w-20 h-20 bg-agro-50 rounded-full flex items-center justify-center mx-auto mb-4 text-agro-700">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-10 h-10">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+              </svg>
+            </div>
+            <h1 className="text-3xl font-serif font-bold text-agro-900 mb-2">Motor de IA Bandeira Agro</h1>
+            <p className="text-gray-600">Para iniciar avaliações precisas (NBR 14653), ative a conexão com o processamento Gemini.</p>
+          </div>
+          <button 
+            onClick={handleActivateKey}
+            className="w-full bg-agro-700 hover:bg-agro-900 text-white font-bold py-4 rounded-xl shadow-lg transition-all transform hover:scale-[1.02] flex items-center justify-center gap-3"
+          >
+            Ativar Engine de Inteligência
+          </button>
+          <p className="mt-4 text-xs text-gray-400">
+            Requer uma chave de API do Google Cloud com faturamento ativo.
+            <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="ml-1 underline">Saiba mais</a>
+          </p>
+        </div>
+      ) : (
+        <>
+          {currentStep === AppStep.SELECTION && <StepSelection onSelect={handleTypeSelect} />}
+          {currentStep === AppStep.FORM && (
+            <StepForm 
+              propertyType={propertyData.type} 
+              initialData={propertyData}
+              onSubmit={handleFormSubmit} 
+              onBack={handleBackToSelection} 
+            />
+          )}
+          {currentStep === AppStep.LOADING && <LoadingScreen />}
+          {currentStep === AppStep.RESULT && valuationResult && (
+            <ReportScreen 
+              data={valuationResult} 
+              property={propertyData} 
+              onReset={handleReset} 
+              onReview={handleReview}
+            />
+          )}
+          {currentStep === AppStep.LOGIN && <LoginScreen onLoginSuccess={() => setCurrentStep(AppStep.DASHBOARD)} onBack={handleBackToSelection} />}
+          {currentStep === AppStep.DASHBOARD && <AdminDashboard onLogout={handleReset} />}
+        </>
       )}
-      {currentStep === AppStep.LOADING && <LoadingScreen />}
-      {currentStep === AppStep.RESULT && valuationResult && (
-        <ReportScreen 
-          data={valuationResult} 
-          property={propertyData} 
-          onReset={handleReset} 
-          onReview={handleReview}
-        />
-      )}
-      
-      {currentStep === AppStep.LOGIN && <LoginScreen onLoginSuccess={handleLoginSuccess} onBack={handleBackToSelection} />}
-      {currentStep === AppStep.DASHBOARD && <AdminDashboard onLogout={handleReset} />}
     </Layout>
   );
 };

@@ -4,10 +4,10 @@ import { PropertyData, MarketSample, PropertyType } from "../types";
 
 /**
  * Busca Amostras com Integração Profunda em Portais
- * Utiliza process.env.API_KEY injetada pelo ambiente (Vercel/Vite)
+ * Cria a instância da IA no momento exato da chamada.
  */
 export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = false): Promise<MarketSample[]> => {
-  // Inicialização direta conforme diretrizes
+  // Inicialização obrigatória dentro da função para capturar process.env.API_KEY atualizado
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
   
   const locationContext = isDeepSearch 
@@ -53,7 +53,7 @@ export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = fal
       }
     });
 
-    const results = JSON.parse(response.text || "[]");
+    const results = JSON.parse(response.text?.trim() || "[]");
     return results.map((s: any, index: number) => ({
       id: `ia-${Date.now()}-${index}`,
       type: data.type,
@@ -109,7 +109,7 @@ export const extractSampleFromUrl = async (url: string, type: PropertyType): Pro
         }
       }
     });
-    return response.text ? JSON.parse(response.text) : null;
+    return response.text ? JSON.parse(response.text.trim()) : null;
   } catch (error) {
     console.error("Erro na extração via URL:", error);
     return null;
