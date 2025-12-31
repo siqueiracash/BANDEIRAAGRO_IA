@@ -14,17 +14,37 @@ const ReportScreen: React.FC<ReportScreenProps> = ({ data, onReset, onReview }) 
     <div className="w-full max-w-5xl animate-fade-in pb-10 print:pb-0 print:max-w-none">
       <style>{`
         @media print {
-          @page { margin: 0; size: A4 portrait; }
+          @page { 
+            margin: 0; 
+            size: A4 portrait; 
+          }
           header, footer, .no-print { display: none !important; }
-          body { background: white !important; padding: 0 !important; margin: 0 !important; }
-          #root, main { padding: 0 !important; margin: 0 !important; max-width: none !important; width: 100% !important; display: block !important; }
-          .report-container { border: none !important; box-shadow: none !important; border-radius: 0 !important; margin: 0 !important; padding: 0 !important; width: 100% !important; max-width: none !important; }
-          .report-page { page-break-after: always !important; break-after: page !important; width: 210mm !important; height: 297mm !important; overflow: hidden !important; }
+          body { 
+            background: white !important; 
+            padding: 0 !important; 
+            margin: 0 !important; 
+          }
+          #root, main { 
+            padding: 0 !important; 
+            margin: 0 !important; 
+            max-width: none !important; 
+            width: 100% !important; 
+            display: block !important; 
+          }
+          .report-container { 
+            border: none !important; 
+            box-shadow: none !important; 
+            border-radius: 0 !important; 
+            margin: 0 !important; 
+            padding: 0 !important; 
+            width: 100% !important; 
+            max-width: none !important; 
+          }
         }
         .report-content h1, .report-content h2, .report-content h3 { font-family: 'Playfair Display', serif; }
       `}</style>
 
-      <div className="bg-white shadow-2xl overflow-hidden rounded-3xl border border-gray-100 print:rounded-none print:border-none print:shadow-none report-container">
+      <div className="bg-gray-100 p-8 rounded-3xl border border-gray-200 print:bg-white print:p-0 print:rounded-none print:border-none report-container">
         <div 
           className="report-content"
           dangerouslySetInnerHTML={{ __html: data.reportText }} 
@@ -32,7 +52,7 @@ const ReportScreen: React.FC<ReportScreenProps> = ({ data, onReset, onReview }) 
       </div>
 
       <div className="flex flex-col md:flex-row justify-between items-center mt-12 no-print px-6 gap-6">
-        <button onClick={onReset} className="w-full md:w-auto text-gray-500 border-2 border-gray-200 hover:border-gray-400 px-8 py-4 rounded-2xl font-bold transition-all">
+        <button onClick={onReset} className="w-full md:w-auto text-gray-500 border-2 border-gray-200 hover:border-gray-400 px-8 py-4 rounded-2xl font-bold transition-all bg-white">
           Nova Avaliação
         </button>
         
