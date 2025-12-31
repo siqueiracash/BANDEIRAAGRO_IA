@@ -29,24 +29,6 @@ const ReportScreen: React.FC<ReportScreenProps> = ({ data, onReset, onReview }) 
 
           header, footer, .no-print { display: none !important; }
           
-          .report-page { 
-            display: flex !important;
-            page-break-after: always !important;
-            break-after: page !important;
-            box-shadow: none !important;
-            width: 210mm !important;
-            height: 297mm !important;
-            margin: 0 !important;
-            padding: 20mm !important;
-            overflow: hidden !important;
-            position: relative !important;
-          }
-          
-          .report-page.page-start-new {
-            page-break-before: always !important;
-            break-before: page !important;
-          }
-
           #root, main { 
             width: 100% !important; 
             max-width: 100% !important; 
@@ -55,7 +37,11 @@ const ReportScreen: React.FC<ReportScreenProps> = ({ data, onReset, onReview }) 
             display: block !important;
           }
 
-          /* Evita a criação de uma página extra em branco no final */
+          .report-page { 
+            page-break-after: always !important;
+            break-after: page !important;
+          }
+
           .report-wrapper > div:last-child {
             page-break-after: avoid !important;
             break-after: avoid !important;
