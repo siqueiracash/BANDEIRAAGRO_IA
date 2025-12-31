@@ -187,77 +187,78 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
               </div>
             `).join('')}
           </div>
-          <div class="mt-auto pt-8 text-center text-gray-300 text-[9px] font-bold uppercase tracking-[0.3em]">BANDEIRA AGRO - INTELIGÊNCIA EM AVALIAÇÕES</div>
+          <div class="mt-auto pt-8 text-center text-gray-200 text-[9px] font-bold uppercase tracking-[0.3em]">BANDEIRA AGRO - INTELIGÊNCIA EM AVALIAÇÕES</div>
         </div>
       `).join('')}
 
-      <!-- PÁGINA 7: MEMÓRIA DE CÁLCULO (Otimização Máxima para evitar quebras) -->
-      <div class="report-page px-16 py-10 flex flex-col">
-        <h2 class="text-[18px] font-serif font-bold text-gray-900 mb-1 uppercase tracking-wide">ANEXO: MEMÓRIA DE CÁLCULO</h2>
-        <h3 class="text-[22px] font-serif text-gray-300 mb-6 uppercase tracking-[0.15em]">PROCESSAMENTO ESTATÍSTICO</h3>
+      <!-- PÁGINA 7: MEMÓRIA DE CÁLCULO (Ajuste de Spacing e Visual) -->
+      <div class="report-page px-16 py-12 flex flex-col">
+        <h2 class="text-[20px] font-serif font-bold text-gray-900 mb-1 uppercase tracking-wide">ANEXO: MEMÓRIA DE CÁLCULO</h2>
+        <h3 class="text-[24px] font-serif text-gray-300 mb-10 uppercase tracking-[0.15em]">PROCESSAMENTO ESTATÍSTICO</h3>
         
-        <div class="mb-4">
-          <p class="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2">ELEMENTOS COLETADOS</p>
-          <table class="w-full text-[9px] border-collapse border border-gray-100">
+        <div class="mb-6">
+          <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">ELEMENTOS COLETADOS</p>
+          <table class="w-full text-[10px] border-collapse border border-gray-100">
             <thead>
               <tr class="bg-gray-50 text-gray-400 uppercase font-bold text-center">
-                <th class="p-2 border">AMOSTRA</th><th class="p-2 border">VO (R$)</th><th class="p-2 border">ÁREA (${unit.toUpperCase()})</th><th class="p-2 border">OFERTA</th><th class="p-2 border text-gray-900">VUB (R$)</th>
+                <th class="p-2.5 border">AMOSTRA</th><th class="p-2.5 border">VO (R$)</th><th class="p-2.5 border">ÁREA (${unit.toUpperCase()})</th><th class="p-2.5 border">OFERTA</th><th class="p-2.5 border text-gray-900">VUB (R$)</th>
               </tr>
             </thead>
             <tbody>
               ${finalPool.map((s, i) => `
                 <tr class="text-center hover:bg-gray-50">
-                  <td class="p-1.5 border font-bold text-gray-300 text-[14px]">${i+1}</td>
-                  <td class="p-1.5 border font-medium">${fmt.format(s.price)}</td>
-                  <td class="p-1.5 border font-medium">${s.areaTotal}</td>
-                  <td class="p-1.5 border font-medium">0,90</td>
-                  <td class="p-1.5 border font-bold text-gray-900">${fmt.format(s.vub)}</td>
+                  <td class="p-2 border font-bold text-gray-300 text-[16px]">${i+1}</td>
+                  <td class="p-2 border font-medium">${fmt.format(s.price)}</td>
+                  <td class="p-2 border font-medium">${s.areaTotal}</td>
+                  <td class="p-2 border font-medium">0,90</td>
+                  <td class="p-2 border font-bold text-gray-900">${fmt.format(s.vub)}</td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
         </div>
 
-        <div class="mb-4">
-          <p class="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2">CÁLCULO DO VALOR MÉDIO HOMOGENEIZADO</p>
-          <table class="w-full text-[7.5px] border-collapse border border-gray-100">
+        <div class="mb-10">
+          <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">CÁLCULO DO VALOR MÉDIO HOMOGENEIZADO</p>
+          <table class="w-full text-[8.5px] border-collapse border border-gray-100">
             <thead>
               <tr class="bg-gray-50 text-gray-400 uppercase font-bold text-center">
-                <th class="p-1.5 border">AM</th><th class="p-1.5 border">VUB (R$)</th><th class="p-1.5 border">F.OF</th><th class="p-1.5 border">F.DIM</th><th class="p-1.5 border">F.CAP</th><th class="p-1.5 border">F.ACE</th><th class="p-1.5 border">F.TOP</th><th class="p-1.5 border">F.OUT</th><th class="p-1.5 border text-[#15803d]">VUH (R$)</th>
+                <th class="p-2 border">AM</th><th class="p-2 border">VUB (R$)</th><th class="p-2 border">F.OF</th><th class="p-2 border">F.DIM</th><th class="p-2 border">F.CAP</th><th class="p-2 border">F.ACE</th><th class="p-2 border">F.TOP</th><th class="p-2 border">F.OUT</th><th class="p-2 border text-[#15803d]">VUH (R$)</th>
               </tr>
             </thead>
             <tbody>
               ${finalPool.map((s, i) => `
                 <tr class="text-center hover:bg-gray-50">
-                  <td class="p-1 border font-bold text-gray-300">${i+1}</td>
-                  <td class="p-1 border">${s.vub.toFixed(2)}</td>
-                  <td class="p-1 border">0,90</td><td class="p-1 border">1,00</td><td class="p-1 border">1,00</td><td class="p-1 border">1,00</td><td class="p-1 border">1,00</td><td class="p-1 border">1,08</td>
-                  <td class="p-1 border font-bold text-[#15803d]">${fmt.format(s.vuh)}</td>
+                  <td class="p-1.5 border font-bold text-gray-300">${i+1}</td>
+                  <td class="p-1.5 border font-medium">${s.vub.toFixed(2)}</td>
+                  <td class="p-1.5 border">0,90</td><td class="p-1.5 border">1,00</td><td class="p-1.5 border">1,00</td><td class="p-1.5 border">1,00</td><td class="p-1.5 border">1,00</td><td class="p-1.5 border">1,08</td>
+                  <td class="p-1.5 border font-bold text-[#15803d]">${fmt.format(s.vuh)}</td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
         </div>
 
-        <div class="mt-auto flex flex-col gap-6">
-          <div class="grid grid-cols-2 gap-10 items-end">
-            <div class="space-y-2">
-              <div class="flex justify-between border-b border-gray-100 pb-1 text-[10px] font-bold uppercase"><span class="text-gray-400">MÉDIA</span><span class="text-gray-900 font-black">${fmt.format(avgVuh)}</span></div>
-              <div class="flex justify-between border-b border-gray-100 pb-1 text-[10px] font-bold uppercase"><span class="text-gray-400">DESVIO PADRÃO</span><span class="text-[#15803d] font-black">${fmt.format(stdDev)}</span></div>
-              <div class="flex justify-between border-b border-gray-100 pb-1 text-[10px] font-bold uppercase"><span class="text-gray-400">COEF. VARIAÇÃO</span><span class="text-[#15803d] font-black">${cv.toFixed(2)}%</span></div>
-              <div class="flex justify-between text-[10px] font-bold uppercase"><span class="text-gray-400">GRAU DE PRECISÃO</span><span class="text-[#15803d] font-black">${precision}</span></div>
+        <div class="mt-4 flex flex-col gap-8">
+          <div class="grid grid-cols-2 gap-10 items-start">
+            <div class="space-y-3">
+              <div class="flex justify-between border-b border-gray-100 pb-2 text-[11px] font-bold uppercase"><span class="text-gray-400">MÉDIA</span><span class="text-gray-900 font-black">${fmt.format(avgVuh)}</span></div>
+              <div class="flex justify-between border-b border-gray-100 pb-2 text-[11px] font-bold uppercase"><span class="text-gray-400">DESVIO PADRÃO</span><span class="text-[#15803d] font-black">${fmt.format(stdDev)}</span></div>
+              <div class="flex justify-between border-b border-gray-100 pb-2 text-[11px] font-bold uppercase"><span class="text-gray-400">COEF. VARIAÇÃO</span><span class="text-[#15803d] font-black">${cv.toFixed(2)}%</span></div>
+              <div class="flex justify-between text-[11px] font-bold uppercase"><span class="text-gray-400">GRAU DE PRECISÃO</span><span class="text-[#15803d] font-black">${precision}</span></div>
             </div>
-            <div class="border border-gray-200 rounded-xl p-4 bg-[#f9fafb] shadow-sm">
-              <p class="text-[9px] font-black text-gray-900 mb-3 uppercase tracking-widest text-center">INTERVALO CONFIANÇA (80%)</p>
-              <div class="space-y-2 uppercase">
-                <div class="flex justify-between text-[10px] font-bold border-b border-gray-200 pb-1"><span class="text-gray-500">MÍNIMO</span><span class="text-gray-900 font-black">${fmt.format(avgVuh * 0.85)}</span></div>
-                <div class="flex justify-between text-[10px] font-bold border-b border-gray-200 pb-1"><span class="text-gray-500">MÁXIMO</span><span class="text-gray-900 font-black">${fmt.format(avgVuh * 1.15)}</span></div>
-                <div class="flex justify-between text-[10px] font-bold text-[#15803d]"><span class="text-[#15803d]">AMPLITUDE</span><span class="font-black">${fmt.format(avgVuh * 0.30)}</span></div>
+            <div class="border border-gray-200 rounded-2xl p-6 bg-[#f9fafb] shadow-sm">
+              <p class="text-[10px] font-black text-gray-900 mb-4 uppercase tracking-widest text-center">INTERVALO CONFIANÇA (80%)</p>
+              <div class="space-y-3 uppercase">
+                <div class="flex justify-between text-[11px] font-bold border-b border-gray-200 pb-1.5"><span class="text-gray-500">MÍNIMO</span><span class="text-gray-900 font-black">${fmt.format(avgVuh * 0.85)}</span></div>
+                <div class="flex justify-between text-[11px] font-bold border-b border-gray-200 pb-1.5"><span class="text-gray-500">MÁXIMO</span><span class="text-gray-900 font-black">${fmt.format(avgVuh * 1.15)}</span></div>
+                <div class="flex justify-between text-[11px] font-bold text-[#15803d]"><span class="text-[#15803d]">AMPLITUDE</span><span class="font-black">${fmt.format(avgVuh * 0.30)}</span></div>
               </div>
             </div>
           </div>
-          <div class="pt-4 text-center text-gray-300 text-[9px] font-bold uppercase tracking-[0.3em]">BANDEIRA AGRO - INTELIGÊNCIA EM AVALIAÇÕES</div>
         </div>
+        
+        <div class="mt-auto pt-6 text-center text-gray-300 text-[10px] font-bold uppercase tracking-[0.4em]">BANDEIRA AGRO - INTELIGÊNCIA EM AVALIAÇÕES</div>
       </div>
 
       <!-- PÁGINA 8: RESPONSABILIDADE (FINAL) -->
