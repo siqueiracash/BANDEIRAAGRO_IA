@@ -2,6 +2,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/valuation",
+      "destination": "/api/valuation.ts"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/$1"
     },

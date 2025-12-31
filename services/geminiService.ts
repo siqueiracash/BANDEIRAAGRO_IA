@@ -5,7 +5,7 @@ import { PropertyData, MarketSample, PropertyType } from "../types";
 const isPreview = () => !!(window as any).aistudio;
 
 /**
- * Motor de IA local para uso no Preview do AI Studio
+ * Motor de IA local para uso no Preview do AI Studio (Usa o SDK diretamente)
  */
 const runPreviewAI = async (payload: any) => {
   const apiKey = process.env.API_KEY;
@@ -13,7 +13,7 @@ const runPreviewAI = async (payload: any) => {
   const ai = new GoogleGenAI({ apiKey });
   
   if (payload.action === 'findSamples') {
-    const { data, isDeepSearch } = payload;
+    const { data } = payload;
     const prompt = `Busque amostras de ${data.urbanSubType || data.ruralActivity} em ${data.city}. Retorne JSON.`;
     const res = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
@@ -26,26 +26,37 @@ const runPreviewAI = async (payload: any) => {
 };
 
 /**
- * Chama o backend no Vercel ou o SDK no Preview
+ * Função centralizada para chamadas de IA (Backend Vercel ou SDK local)
  */
 const callAI = async (payload: any) => {
   if (isPreview()) return await runPreviewAI(payload);
 
-  const response = await fetch('/api/valuation', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
+  try {
+    const response = await fetch('/api/valuation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
 
-  // Se o servidor devolver HTML em vez de JSON (Erro 404/500 padrão)
-  const contentType = response.headers.get("content-type");
-  if (!response.ok || !contentType || !contentType.includes("application/json")) {
-    const text = await response.text();
-    console.error("Erro do Servidor (Não-JSON):", text);
-    throw new Error("O servidor de IA não respondeu corretamente. Verifique se a API_KEY está configurada no painel da Vercel.");
+    const contentType = response.headers.get("content-type");
+    
+    // Se o servidor retornar HTML (erro 404/500), isso causa o erro "Unexpected token T"
+    if (!contentType || !contentType.includes("application/json")) {
+      const errorText = await response.text();
+      console.error("Resposta inválida do servidor (HTML):", errorText);
+      throw new Error("O servidor da Vercel retornou uma página de erro em vez de dados. Verifique se o arquivo api/valuation.ts existe e se a API_KEY foi configurada no painel da Vercel.");
+    }
+
+    if (!response.ok) {
+      const errData = await response.json();
+      throw new Error(errData.error || "Erro desconhecido no servidor de IA.");
+    }
+
+    return await response.json();
+  } catch (error: any) {
+    console.error("Falha na comunicação com a IA:", error);
+    throw error;
   }
-
-  return await response.json();
 };
 
 export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = false): Promise<MarketSample[]> => {
@@ -75,7 +86,6 @@ export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = fal
       conservationState: 'Bom'
     })).filter((s: any) => s.price > 10000);
   } catch (error: any) {
-    console.error("Erro na busca de amostras:", error);
     throw error;
   }
 };
@@ -84,7 +94,6 @@ export const extractSampleFromUrl = async (url: string, type: PropertyType): Pro
   try {
     return await callAI({ action: 'extractUrl', url, type });
   } catch (error) {
-    console.error("Erro na extração:", error);
     return null;
   }
 };

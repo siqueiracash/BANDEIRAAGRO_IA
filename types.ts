@@ -29,10 +29,8 @@ export interface PropertyData {
   topography?: string;
   occupation?: string;
   improvements?: string;
-  
-  // Novos campos baseados na tabela detalhada
-  landCapability?: string; // Capacidade de Uso da Terra (I a VIII)
-  publicImprovements?: string; // Melhoramentos Públicos (Luz, Força, etc)
+  landCapability?: string;
+  publicImprovements?: string;
 }
 
 export interface GroundingSource {
@@ -56,15 +54,11 @@ export interface MarketSample {
   source: string;
   url?: string;
   description?: string;
-  
-  // Campos Urbanos Específicos
   urbanSubType?: string;
   bedrooms?: number;
   bathrooms?: number;
   parking?: number;
   conservationState?: string;
-
-  // Campos Rurais Específicos
   ruralActivity?: string;
   carNumber?: string;
   surface?: string;
@@ -72,15 +66,23 @@ export interface MarketSample {
   topography?: string;
   occupation?: string;
   improvements?: string;
-  
   landCapability?: string;
   publicImprovements?: string;
+  
+  // Campo para cálculo
+  adjustedPricePerUnit?: number;
 }
 
 export interface ValuationResult {
   reportText: string;
-  sources: (MarketSample | GroundingSource)[];
+  sources: MarketSample[];
   estimatedValue: string;
+  liquidationValue: string;
+  stats: {
+    average: number;
+    sampleCount: number;
+    standardDeviation: string;
+  };
 }
 
 export enum AppStep {
