@@ -34,7 +34,7 @@ const LogoSVG = `
 const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): ValuationResult => {
   if (pool.length < 3) throw new Error("AMOSTRAS_INSUFICIENTES");
 
-  // 1. Homogeneização Técnica (F.Oferta 0.90 e F.Outros 1.08 conforme laudo modelo)
+  // 1. Homogeneização Técnica
   const allProcessed = pool.map(s => {
     const vub = s.price / s.areaTotal;
     const fOferta = OFFER_FACTOR;
@@ -43,14 +43,11 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
     const fAcesso = 1.00;
     const fTopo = 1.00;
     const fOutros = OTHERS_FACTOR;
-    
-    // VUH = VUB * F.OFERTA * F.DIM * F.CAP * F.ACESSO * F.TOPO * F.OUTROS
     const vuh = vub * fOferta * fDim * fCap * fAcesso * fTopo * fOutros;
-    
     return { ...s, vub, vuh, fOferta, fDim, fCap, fAcesso, fTopo, fOutros };
   });
 
-  // 2. Saneamento por Mediana (Filtro Rigoroso 0,6 a 1,4)
+  // 2. Saneamento por Mediana
   const sortedVuhs = [...allProcessed].map(s => s.vuh).sort((a, b) => a - b);
   const medianVuh = sortedVuhs[Math.floor(sortedVuhs.length / 2)];
   
@@ -103,7 +100,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
 
         <div class="space-y-12 max-w-3xl mx-auto border-b border-gray-100 pb-16">
           <div><h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-[0.3em] mb-2">LOCALIZAÇÃO DO IMÓVEL</h3><p class="text-xl font-medium text-gray-800">${data.address || ''}, ${data.neighborhood || ''}, ${data.city} - ${data.state}</p></div>
-          <div><h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-[0.3em] mb-2">TIPO DE IMÓVEL</h3><p class="text-xl font-medium text-gray-800">${data.type} (${data.urbanSubType || data.ruralActivity})</p></div>
+          <div><h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-[0.3em] mb-2">TIPO DE IMÓVEL</h3><p class="text-xl font-medium text-gray-800 uppercase">${data.type} (${data.urbanSubType || data.ruralActivity})</p></div>
           <div><h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-[0.3em] mb-2">ATIVIDADE PREDOMINANTE</h3><p class="text-xl font-medium text-gray-800 uppercase">RESIDENCIAL / COMERCIAL</p></div>
           <div><h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-[0.3em] mb-2">ÁREAS</h3><p class="text-2xl font-bold text-agro-900 uppercase">ÁREA TOTAL: ${data.areaTotal.toLocaleString('pt-BR')} ${unit.toUpperCase()}</p></div>
         </div>
@@ -111,8 +108,8 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         <div class="mt-16 text-center">
           <h3 class="text-[10px] font-bold text-gray-900 uppercase tracking-[0.4em] mb-12">RESUMO DE VALORES</h3>
           <div class="space-y-4">
-            <p class="text-xl font-medium text-gray-600">VALOR DE MERCADO: <span class="font-bold text-gray-900">${fmt.format(finalValue)}</span></p>
-            <p class="text-xl font-medium text-gray-600">VALOR DE LIQUIDAÇÃO FORÇADA: <span class="font-bold text-gray-900">${fmt.format(liquidationValue)}</span></p>
+            <p class="text-xl font-medium text-gray-600 uppercase">VALOR DE MERCADO: <span class="font-bold text-gray-900">${fmt.format(finalValue)}</span></p>
+            <p class="text-xl font-medium text-gray-600 uppercase">VALOR DE LIQUIDAÇÃO FORÇADA: <span class="font-bold text-gray-900">${fmt.format(liquidationValue)}</span></p>
           </div>
         </div>
         
@@ -139,7 +136,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
 
       <!-- PÁGINA 4: LIQUIDAÇÃO FORÇADA -->
       <div class="report-page px-20 py-20 text-gray-700">
-        <h2 class="text-xl font-serif font-bold text-gray-900 mb-8 uppercase tracking-widest text-center">VALOR PARA LIQUIDAÇÃO FORÇADA</h2>
+        <h2 class="text-xl font-serif font-bold text-gray-900 mb-8 uppercase tracking-widest">VALOR PARA LIQUIDAÇÃO FORÇADA</h2>
         <div class="space-y-8 mb-16 text-sm">
           <p>Para a determinação do “Valor de Liquidação do Imóvel” foram adotados os preceitos constantes do trabalho técnico mencionado.</p>
           <p><strong>Taxa Média de Juros:</strong> Para o cálculo da taxa média de juros foi adotada a série composta pelas linhas de crédito de mercado. A taxa mensal média de juros obtida foi igual a <strong>1.51%</strong>.</p>
@@ -147,7 +144,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         </div>
 
         <div class="bg-gray-50 p-12 rounded-2xl border border-gray-100 text-center mb-16">
-          <p class="text-[10px] font-bold text-gray-400 uppercase tracking-[0.3em] mb-12">F Ó R M U L A  D E  D E S Á G I O</p>
+          <p class="text-[11px] font-bold text-gray-400 uppercase tracking-[0.4em] mb-12">FÓRMULA DE DESÁGIO</p>
           <p class="text-lg font-mono text-agro-700 font-bold mb-4">Valor Liquidação = Valor Mercado × (1 / (1 + 0.0151)^24)</p>
           <div class="w-16 h-px bg-gray-200 mx-auto mb-6"></div>
           <p class="text-sm text-gray-500 font-mono">Fator = 0.6979</p>
@@ -163,7 +160,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
       ${chunkArray(finalPool, 3).map((chunk, pIdx) => `
         <div class="report-page px-20 py-20">
           <h2 class="text-xl font-serif font-bold text-gray-900 mb-2 uppercase tracking-widest">ANEXO: FICHAS DE PESQUISA</h2>
-          <h3 class="text-2xl font-serif text-gray-300 mb-12 uppercase tracking-[0.2em]">D E T A L H A M E N T O  D O  M E R C A D O</h3>
+          <h3 class="text-2xl font-serif text-gray-400 mb-12 uppercase tracking-[0.15em] whitespace-nowrap">DETALHAMENTO DO MERCADO</h3>
           <div class="space-y-6">
             ${chunk.map((s, i) => `
               <div class="border border-gray-200 rounded-3xl overflow-hidden shadow-sm bg-white">
@@ -189,7 +186,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
       <!-- PÁGINA 7: MEMÓRIA DE CÁLCULO -->
       <div class="report-page px-20 py-20">
         <h2 class="text-xl font-serif font-bold text-gray-900 mb-2 uppercase tracking-widest">ANEXO: MEMÓRIA DE CÁLCULO</h2>
-        <h3 class="text-2xl font-serif text-gray-300 mb-10 uppercase tracking-[0.2em]">P R O C E S S A M E N T O  E S T A T Í S T I C O</h3>
+        <h3 class="text-2xl font-serif text-gray-300 mb-10 uppercase tracking-[0.15em] whitespace-nowrap">PROCESSAMENTO ESTATÍSTICO</h3>
         
         <h5 class="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-4">ELEMENTOS COLETADOS</h5>
         <table class="w-full text-[10px] border border-gray-100 mb-10">
@@ -227,7 +224,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
             <p class="flex justify-between">GRAU DE PRECISÃO <span class="text-agro-700 font-extrabold">${precision}</span></p>
           </div>
           <div class="bg-gray-50 p-6 rounded-xl border border-gray-100 uppercase text-[9px] font-bold text-gray-400 tracking-widest space-y-2">
-            <p class="text-gray-900 mb-4 font-extrabold">INTERVALO CONFIANÇA (80%)</p>
+            <p class="text-gray-900 mb-4 font-extrabold uppercase">INTERVALO CONFIANÇA (80%)</p>
             <p class="flex justify-between border-b border-gray-200 pb-1">MÍNIMO <span class="text-gray-800 font-extrabold">${fmt.format(avgVuh * 0.85)}</span></p>
             <p class="flex justify-between border-b border-gray-200 pb-1">MÁXIMO <span class="text-gray-800 font-extrabold">${fmt.format(avgVuh * 1.15)}</span></p>
             <p class="flex justify-between text-agro-700 font-extrabold">AMPLITUDE <span>${fmt.format(avgVuh * 0.30)}</span></p>
