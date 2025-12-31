@@ -19,6 +19,25 @@ const chunkArray = <T>(array: T[], size: number): T[][] => {
 };
 
 /**
+ * SVG da Logomarca BANDEIRA AGRO refinado
+ */
+const LogoSVG = `
+  <div class="flex flex-col items-center">
+    <div class="relative w-32 h-32 flex items-center justify-center">
+      <!-- Círculo Laranja Externo -->
+      <svg viewBox="0 0 100 100" class="absolute inset-0 w-full h-full text-orange-500 fill-none stroke-current" stroke-width="4">
+        <circle cx="50" cy="50" r="45" />
+      </svg>
+      <!-- Folha Estilizada (Multi-segmentada como a original) -->
+      <svg viewBox="0 0 100 100" class="w-20 h-20 text-green-700 fill-current">
+        <path d="M50,85 C55,70 70,55 80,35 C75,45 65,50 55,55 C60,40 70,25 75,10 C65,20 55,30 50,45 C45,30 35,20 25,10 C30,25 40,40 45,55 C35,50 25,45 20,35 C30,55 45,70 50,85 Z" />
+      </svg>
+    </div>
+    <h1 class="mt-4 text-3xl font-serif font-bold tracking-[0.1em] text-gray-800 uppercase">BANDEIRA AGRO</h1>
+  </div>
+`;
+
+/**
  * Realiza os cálculos estatísticos e formata o laudo conforme o padrão BANDEIRA AGRO
  * Utiliza exatamente as 6 melhores amostras.
  */
@@ -27,7 +46,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
     throw new Error("AMOSTRAS_INSUFICIENTES");
   }
 
-  // 1. Seleção das 6 melhores amostras
+  // 1. Seleção das 6 melhores amostras (padrão solicitado)
   const rawAvg = pool.reduce((a, b) => a + (b.price / b.areaTotal), 0) / pool.length;
   const sortedPool = [...pool].sort((a, b) => {
     const diffA = Math.abs((a.price / a.areaTotal) - rawAvg);
@@ -82,15 +101,8 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
       
       <!-- PÁGINA 1: CAPA -->
       <div class="report-page report-cover flex flex-col items-center justify-between">
-        <div class="mt-10 text-center">
-          <div class="mb-4 flex justify-center">
-             <div class="w-32 h-32 rounded-full border-4 border-orange-500 flex items-center justify-center p-4">
-                <svg viewBox="0 0 24 24" class="w-20 h-20 text-green-700 fill-current">
-                   <path d="M17,8C8,10 5,16 5,16C5,16 7,16 9,14C11,12 13,12 13,12C13,12 11,14 9,16C7,18 5,20 5,20C5,20 12,20 16,14C20,8 17,8 17,8Z" />
-                </svg>
-             </div>
-          </div>
-          <h1 class="text-3xl font-serif font-bold tracking-[0.2em] text-gray-800">BANDEIRA AGRO</h1>
+        <div class="mt-16">
+          ${LogoSVG}
         </div>
 
         <div class="text-center">
@@ -98,22 +110,22 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
           <div class="w-32 h-1 bg-agro-900 mx-auto mt-6"></div>
         </div>
 
-        <div class="w-full max-w-2xl border-t border-gray-300 mt-20 pt-8">
+        <div class="w-full max-w-2xl border-t border-gray-300 mb-20 pt-8">
           <table class="w-full text-left text-sm uppercase tracking-wider">
             <tr class="border-b border-gray-100">
-              <td class="py-4 font-bold text-gray-500 w-1/3 uppercase">SOLICITANTE</td>
+              <td class="py-4 font-bold text-gray-500 w-1/3">SOLICITANTE</td>
               <td class="py-4 font-bold text-gray-800">BANDEIRA AGRO</td>
             </tr>
             <tr class="border-b border-gray-100">
-              <td class="py-4 font-bold text-gray-500 uppercase">OBJETIVO DA AVALIAÇÃO</td>
-              <td class="py-4 font-bold text-gray-800 uppercase text-xs">DETERMINAÇÃO DOS VALORES DE MERCADO E LIQUIDAÇÃO FORÇADA</td>
+              <td class="py-4 font-bold text-gray-500">OBJETIVO DA AVALIAÇÃO</td>
+              <td class="py-4 font-bold text-gray-800 text-xs">DETERMINAÇÃO DOS VALORES DE MERCADO E LIQUIDAÇÃO FORÇADA</td>
             </tr>
             <tr class="border-b border-gray-100">
-              <td class="py-4 font-bold text-gray-500 uppercase">FINALIDADE DA AVALIAÇÃO</td>
-              <td class="py-4 font-bold text-gray-800 uppercase text-xs">GARANTIA / GESTÃO PATRIMONIAL</td>
+              <td class="py-4 font-bold text-gray-500">FINALIDADE DA AVALIAÇÃO</td>
+              <td class="py-4 font-bold text-gray-800 text-xs">GARANTIA / GESTÃO PATRIMONIAL</td>
             </tr>
             <tr>
-              <td class="py-4 font-bold text-gray-500 uppercase">DATA BASE</td>
+              <td class="py-4 font-bold text-gray-500">DATA BASE</td>
               <td class="py-4 font-bold text-gray-800">${new Date().toLocaleDateString('pt-BR')}</td>
             </tr>
           </table>
@@ -128,7 +140,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         <div class="space-y-10 max-w-3xl mx-auto border-b border-gray-200 pb-16">
           <div>
             <h3 class="font-bold text-gray-500 uppercase text-xs tracking-[0.2em] mb-2">LOCALIZAÇÃO DO IMÓVEL</h3>
-            <p class="text-xl text-gray-800 leading-relaxed font-medium">${data.address || 'Não informado'}, ${data.neighborhood || ''}, ${data.city} - ${data.state}</p>
+            <p class="text-xl text-gray-800 font-medium">${data.address || 'Não informado'}, ${data.neighborhood || ''}, ${data.city} - ${data.state}</p>
           </div>
 
           <div>
@@ -138,7 +150,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
 
           <div>
             <h3 class="font-bold text-gray-500 uppercase text-xs tracking-[0.2em] mb-2">ATIVIDADE PREDOMINANTE</h3>
-            <p class="text-xl text-gray-800 font-medium">${data.type === PropertyType.RURAL ? (data.ruralActivity || 'Lavoura') : 'Residencial/Comercial'}</p>
+            <p class="text-xl text-gray-800 font-medium">RESIDENCIAL / COMERCIAL</p>
           </div>
 
           <div>
@@ -207,44 +219,44 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         </div>
       </div>
 
-      <!-- ANEXO: FICHAS DE PESQUISA -->
+      <!-- ANEXO: FICHAS DE PESQUISA (3 AMOSTRAS POR PÁGINA) -->
       ${sampleChunks.map((chunk, chunkIdx) => `
         <div class="report-page annex-page">
           <h2 class="text-xl font-bold mb-1 uppercase">ANEXO: FICHAS DE PESQUISA</h2>
           <h3 class="text-2xl font-serif text-gray-400 mb-8 tracking-widest uppercase">DETALHAMENTO DO MERCADO</h3>
           
-          <div class="space-y-6">
+          <div class="space-y-5">
             ${chunk.map((s, idx) => `
               <div class="border border-gray-200 rounded-xl overflow-hidden shadow-sm page-break-avoid">
                 <div class="bg-agro-700 text-white p-3 flex justify-between items-center">
-                  <span class="font-bold uppercase tracking-wider text-xs">AMOSTRA #${(chunkIdx * 3) + idx + 1}</span>
-                  <span class="font-bold text-[10px] uppercase">${s.city} - ${s.state}</span>
-                  <span class="bg-white/20 px-2 py-1 rounded text-[9px]">OFERTA (0,90)</span>
+                  <span class="font-bold uppercase tracking-wider text-[10px]">AMOSTRA #${(chunkIdx * 3) + idx + 1}</span>
+                  <span class="font-bold text-[9px] uppercase">${s.city} - ${s.state}</span>
+                  <span class="bg-white/20 px-2 py-0.5 rounded text-[8px]">OFERTA (0,90)</span>
                 </div>
                 <div class="grid grid-cols-2 text-sm">
-                  <div class="p-3 border-r border-b border-gray-100">
-                    <p class="font-bold text-agro-700 text-[8px] uppercase mb-1">LOCALIZAÇÃO</p>
-                    <p class="text-gray-800 font-medium text-[11px] truncate">${s.neighborhood || s.city}</p>
+                  <div class="p-2.5 border-r border-b border-gray-100">
+                    <p class="font-bold text-agro-700 text-[8px] uppercase mb-0.5">LOCALIZAÇÃO</p>
+                    <p class="text-gray-800 font-medium text-[10px] truncate">${s.neighborhood || s.city}</p>
                   </div>
-                  <div class="p-3 border-b border-gray-100">
-                    <p class="font-bold text-agro-700 text-[8px] uppercase mb-1">FONTE</p>
-                    <p class="text-gray-600 truncate text-[10px]">${s.url || s.source}</p>
+                  <div class="p-2.5 border-b border-gray-100">
+                    <p class="font-bold text-agro-700 text-[8px] uppercase mb-0.5">FONTE</p>
+                    <p class="text-gray-600 truncate text-[9px]">${s.url || s.source}</p>
                   </div>
-                  <div class="p-3 border-r border-b border-gray-100">
-                    <p class="font-bold text-agro-700 text-[8px] uppercase mb-1">ÁREA TOTAL</p>
-                    <p class="text-gray-800 font-medium text-[11px]">${s.areaTotal.toLocaleString('pt-BR')} ${unitLabel}</p>
+                  <div class="p-2.5 border-r border-b border-gray-100">
+                    <p class="font-bold text-agro-700 text-[8px] uppercase mb-0.5">ÁREA TOTAL</p>
+                    <p class="text-gray-800 font-medium text-[10px]">${s.areaTotal.toLocaleString('pt-BR')} ${unitLabel}</p>
                   </div>
-                  <div class="p-3 border-b border-gray-100">
-                    <p class="font-bold text-agro-700 text-[8px] uppercase mb-1">VALOR TOTAL</p>
-                    <p class="text-gray-800 font-bold text-sm">${formatter.format(s.price)}</p>
+                  <div class="p-2.5 border-b border-gray-100">
+                    <p class="font-bold text-agro-700 text-[8px] uppercase mb-0.5">VALOR TOTAL</p>
+                    <p class="text-gray-800 font-bold text-xs">${formatter.format(s.price)}</p>
                   </div>
-                  <div class="p-3 border-r border-gray-100 col-span-1">
-                    <p class="font-bold text-agro-700 text-[8px] uppercase mb-1">DESCRIÇÃO</p>
-                    <p class="text-gray-600 text-[10px] leading-tight line-clamp-2">${s.title}</p>
+                  <div class="p-2.5 border-r border-gray-100 col-span-1">
+                    <p class="font-bold text-agro-700 text-[8px] uppercase mb-0.5">DESCRIÇÃO</p>
+                    <p class="text-gray-600 text-[9px] leading-tight line-clamp-2">${s.title}</p>
                   </div>
-                  <div class="p-3">
-                    <p class="font-bold text-agro-700 text-[8px] uppercase mb-1">CARACTERÍSTICAS</p>
-                    <div class="text-[10px] text-gray-600 space-y-0.5">
+                  <div class="p-2.5">
+                    <p class="font-bold text-agro-700 text-[8px] uppercase mb-0.5">CARACTERÍSTICAS</p>
+                    <div class="text-[9px] text-gray-600 space-y-0.5">
                       ${data.type === PropertyType.RURAL ? `
                         <p>Cap: ${s.landCapability || 'III'}</p>
                         <p>Acesso: ${s.access || 'Bom'}</p>
@@ -258,13 +270,13 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
             `).join('')}
           </div>
           
-          <div class="mt-auto text-center pb-8 border-t border-gray-50 pt-4">
-             <p class="text-[9px] text-gray-300 uppercase tracking-widest font-bold">BANDEIRA AGRO - LAUDO DIGITAL</p>
+          <div class="mt-auto text-center pb-8 pt-4">
+             <p class="text-[8px] text-gray-300 uppercase tracking-widest font-bold">BANDEIRA AGRO - INTELIGÊNCIA EM AVALIAÇÕES</p>
           </div>
         </div>
       `).join('')}
 
-      <!-- ANEXO: MEMÓRIA DE CÁLCULO (PÁGINA ÚNICA) -->
+      <!-- ANEXO: MEMÓRIA DE CÁLCULO (FORÇADA EM PÁGINA ÚNICA) -->
       <div class="report-page annex-page page-start-new">
         <h2 class="text-xl font-bold mb-1 uppercase">ANEXO: MEMÓRIA DE CÁLCULO</h2>
         <h3 class="text-2xl font-serif text-gray-400 mb-6 tracking-widest uppercase text-xs">PROCESSAMENTO ESTATÍSTICO</h3>
@@ -296,66 +308,66 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         </div>
 
         <h4 class="font-bold text-gray-700 mb-3 uppercase text-[9px] tracking-widest">CÁLCULO DO VALOR MÉDIO HOMOGENEIZADO</h4>
-        <div class="border rounded-lg overflow-hidden border-gray-200 mb-8 shadow-sm">
+        <div class="border rounded-lg overflow-hidden border-gray-200 mb-6 shadow-sm">
           <table class="w-full text-[8px] text-left border-collapse">
             <thead class="bg-agro-900 text-white uppercase text-center">
               <tr>
-                <th class="p-1.5 border border-agro-800">Amostra</th>
-                <th class="p-1.5 border border-agro-800">VUB (R$)</th>
-                <th class="p-1.5 border border-agro-800">F. Oferta</th>
-                <th class="p-1.5 border border-agro-800">F. Dim</th>
-                <th class="p-1.5 border border-agro-800">F. Cap</th>
-                <th class="p-1.5 border border-agro-800">F. Acesso</th>
-                <th class="p-1.5 border border-agro-800">F. Topo</th>
-                <th class="p-1.5 border border-agro-800">F. Outros</th>
-                <th class="p-1.5 border border-agro-800 font-bold">VUH (R$)</th>
+                <th class="p-1 border border-agro-800">Amostra</th>
+                <th class="p-1 border border-agro-800">VUB (R$)</th>
+                <th class="p-1 border border-agro-800">F. Oferta</th>
+                <th class="p-1 border border-agro-800">F. Dim</th>
+                <th class="p-1 border border-agro-800">F. Cap</th>
+                <th class="p-1 border border-agro-800">F. Acesso</th>
+                <th class="p-1 border border-agro-800">F. Topo</th>
+                <th class="p-1 border border-agro-800">F. Outros</th>
+                <th class="p-1 border border-agro-800 font-bold">VUH (R$)</th>
               </tr>
             </thead>
             <tbody class="text-center">
               ${processedSamples.map((s, idx) => `
                 <tr class="odd:bg-gray-50">
-                  <td class="p-1.5 border border-gray-100 font-bold">${idx + 1}</td>
-                  <td class="p-1.5 border border-gray-100">${s.adjustedPricePerUnit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                  <td class="p-1.5 border border-gray-100 text-center">0,90</td>
-                  <td class="p-1.5 border border-gray-100 text-center">1,00</td>
-                  <td class="p-1.5 border border-gray-100 text-center">${s.fCap?.toFixed(2).replace('.', ',')}</td>
-                  <td class="p-1.5 border border-gray-100 text-center">1,00</td>
-                  <td class="p-1.5 border border-gray-100 text-center">1,00</td>
-                  <td class="p-1.5 border border-gray-100 text-center">1,08</td>
-                  <td class="p-1.5 border border-gray-100 font-bold text-agro-700">${formatter.format(s.vuh || 0)}</td>
+                  <td class="p-1 border border-gray-100 font-bold text-center">${idx + 1}</td>
+                  <td class="p-1 border border-gray-100">${s.adjustedPricePerUnit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td class="p-1 border border-gray-100">0,90</td>
+                  <td class="p-1 border border-gray-100">1,00</td>
+                  <td class="p-1 border border-gray-100">${s.fCap?.toFixed(2).replace('.', ',')}</td>
+                  <td class="p-1 border border-gray-100">1,00</td>
+                  <td class="p-1 border border-gray-100">1,00</td>
+                  <td class="p-1 border border-gray-100">1,08</td>
+                  <td class="p-1 border border-gray-100 font-bold text-agro-700">${formatter.format(s.vuh || 0)}</td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-sm pt-4 border-t border-gray-100">
-          <div class="space-y-1.5">
-             <p class="flex justify-between border-b pb-1 text-[10px] uppercase tracking-tight"><span>Média</span> <span class="font-bold text-agro-900">${formatter.format(avgVuh)}</span></p>
-             <p class="flex justify-between border-b pb-1 text-[10px] uppercase tracking-tight"><span>Desvio Padrão</span> <span class="font-bold text-agro-900">${formatter.format(stdDev)}</span></p>
-             <p class="flex justify-between border-b pb-1 text-[10px] uppercase tracking-tight"><span>Coef. Variação</span> <span class="font-bold text-agro-900">${coefVariation.toFixed(2)}%</span></p>
-             <p class="flex justify-between border-b pb-1 text-[10px] uppercase tracking-tight"><span>Grau de Precisão</span> <span class="font-bold text-agro-700">GRAU II</span></p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mt-4">
+          <div class="space-y-1">
+             <p class="flex justify-between border-b pb-0.5 text-[10px] uppercase"><span>Média</span> <span class="font-bold text-agro-900">${formatter.format(avgVuh)}</span></p>
+             <p class="flex justify-between border-b pb-0.5 text-[10px] uppercase"><span>Desvio Padrão</span> <span class="font-bold text-agro-900">${formatter.format(stdDev)}</span></p>
+             <p class="flex justify-between border-b pb-0.5 text-[10px] uppercase"><span>Coef. Variação</span> <span class="font-bold text-agro-900">${coefVariation.toFixed(2)}%</span></p>
+             <p class="flex justify-between border-b pb-0.5 text-[10px] uppercase"><span>Grau de Precisão</span> <span class="font-bold text-agro-700">GRAU II</span></p>
           </div>
-          <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
-            <h5 class="font-bold text-[8px] uppercase tracking-widest mb-2">INTERVALO CONFIANÇA (80%)</h5>
-            <div class="space-y-1 text-[10px]">
-               <p class="flex justify-between uppercase tracking-tighter"><span>Mínimo</span> <span class="font-bold">${formatter.format(avgVuh * 0.85)}</span></p>
-               <p class="flex justify-between uppercase tracking-tighter"><span>Máximo</span> <span class="font-bold">${formatter.format(avgVuh * 1.15)}</span></p>
-               <p class="flex justify-between border-t pt-1 mt-1 uppercase tracking-tighter"><span>Amplitude</span> <span class="font-bold text-agro-700">${formatter.format(avgVuh * 0.30)}</span></p>
+          <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
+            <h5 class="font-bold text-[8px] uppercase tracking-widest mb-1">INTERVALO CONFIANÇA (80%)</h5>
+            <div class="space-y-0.5 text-[9px]">
+               <p class="flex justify-between uppercase"><span>Mínimo</span> <span class="font-bold">${formatter.format(avgVuh * 0.85)}</span></p>
+               <p class="flex justify-between uppercase"><span>Máximo</span> <span class="font-bold">${formatter.format(avgVuh * 1.15)}</span></p>
+               <p class="flex justify-between border-t pt-0.5 mt-0.5 uppercase"><span>Amplitude</span> <span class="font-bold text-agro-700">${formatter.format(avgVuh * 0.30)}</span></p>
             </div>
           </div>
         </div>
 
         <div class="mt-auto text-center pb-10 uppercase text-[8px] text-gray-300 tracking-[0.3em]">
-           BANDEIRA AGRO - INTELIGÊNCIA EM AVALIAÇÕES
+           BANDEIRA AGRO - LAUDO DE AVALIAÇÃO
         </div>
       </div>
 
-      <!-- PÁGINA: RESPONSABILIDADE E LIMITAÇÕES (ÚLTIMA PÁGINA) -->
-      <div class="report-page page-start-new flex flex-col">
+      <!-- PÁGINA FINAL: RESPONSABILIDADE E LIMITAÇÕES -->
+      <div class="report-page page-start-new flex flex-col h-full">
         <h2 class="text-xl font-bold mb-10 text-center uppercase tracking-widest">RESPONSABILIDADE E LIMITAÇÕES</h2>
         
-        <div class="space-y-6 text-justify text-gray-700 text-sm leading-relaxed">
+        <div class="space-y-6 text-justify text-gray-700 text-sm leading-relaxed flex-grow">
           <p>Este Laudo de Avaliação foi produzido com base em informações fornecidas pela contratante/usuário do sistema, incluindo a documentação do imóvel objeto da análise, características físicas e localizacionais, as quais são admitidas como verdadeiras para fins de cálculo.</p>
           
           <p>Ressalva-se que o presente trabalho foi realizado seguindo os preceitos metodológicos da ABNT NBR 14653-3 (Imóveis Rurais) e/ou NBR 14653-2 (Imóveis Urbanos), contudo, enquadra-se na modalidade <strong>"Avaliação Expedita" (Desktop Valuation)</strong>, sendo realizado <strong>sem vistoria in loco</strong> ao imóvel avaliando.</p>
@@ -365,10 +377,10 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
           <p>A utilização deste Laudo de Avaliação é restrita à finalidade de estimativa de valor de mercado e liquidação forçada para fins gerenciais, não devendo ser utilizado como único instrumento para garantias bancárias de alto risco sem a devida validação presencial complementar.</p>
         </div>
 
-        <div class="mt-auto pt-20 text-center text-gray-400 pb-8">
+        <div class="mt-auto text-center pb-8 pt-20">
           <p class="uppercase text-[10px] tracking-widest font-bold text-gray-600 mb-2">BANDEIRA AGRO</p>
-          <p>Documento gerado eletronicamente pela plataforma Bandeira Agro.</p>
-          <p class="mt-2 font-mono text-[9px] uppercase tracking-widest">${new Date().toLocaleDateString('pt-BR')} | ID-SYSTEM-${Math.random().toString(36).substring(7).toUpperCase()}</p>
+          <p class="text-[10px] text-gray-400">Documento gerado eletronicamente pela plataforma Bandeira Agro Intelligence.</p>
+          <p class="mt-2 font-mono text-[9px] uppercase tracking-widest text-gray-300">${new Date().toLocaleDateString('pt-BR')} | ID-SYSTEM-${Math.random().toString(36).substring(7).toUpperCase()}</p>
         </div>
       </div>
 
@@ -404,8 +416,8 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         break-inside: avoid;
       }
       .page-start-new {
-        page-break-before: always;
-        break-before: page;
+        page-break-before: always !important;
+        break-before: page !important;
       }
       @media print {
         body { background: white !important; margin: 0 !important; }
@@ -418,11 +430,11 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
           width: 210mm !important;
           padding: 20mm !important;
         }
+        .report-wrapper { gap: 0 !important; }
         .page-start-new {
           page-break-before: always !important;
           break-before: page !important;
         }
-        .report-wrapper { gap: 0 !important; }
       }
     </style>
   `;
