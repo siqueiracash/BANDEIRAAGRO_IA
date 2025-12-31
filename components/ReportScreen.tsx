@@ -11,7 +11,7 @@ interface ReportScreenProps {
 
 const ReportScreen: React.FC<ReportScreenProps> = ({ data, onReset, onReview }) => {
   return (
-    <div className="w-full max-w-5xl animate-fade-in pb-10 print:pb-0">
+    <div className="w-full max-w-5xl animate-fade-in pb-10 print:pb-0 print:max-w-none">
       <style>{`
         @media print {
           @page { 
@@ -22,8 +22,6 @@ const ReportScreen: React.FC<ReportScreenProps> = ({ data, onReset, onReview }) 
           html, body { 
             margin: 0 !important; 
             padding: 0 !important; 
-            overflow: visible !important; 
-            height: auto !important; 
             background: white !important;
             -webkit-print-color-adjust: exact;
           }
@@ -31,19 +29,22 @@ const ReportScreen: React.FC<ReportScreenProps> = ({ data, onReset, onReview }) 
           header, footer, .no-print { display: none !important; }
           
           .report-page { 
-            display: block !important;
-            page-break-before: always !important;
+            display: flex !important;
             page-break-after: always !important;
-            clear: both;
             box-shadow: none !important;
             width: 210mm !important;
             height: 297mm !important;
             margin: 0 !important;
-            padding: 16mm !important;
+            padding: 20mm !important;
+            padding-bottom: 30mm !important;
+            overflow: hidden !important;
           }
           
-          .report-page:first-child {
-            page-break-before: avoid !important;
+          /* Páginas com tabelas longas podem precisar de altura automática */
+          .report-page.h-auto {
+             height: auto !important;
+             min-height: 297mm !important;
+             page-break-after: auto !important;
           }
 
           #root, main { 
@@ -52,7 +53,6 @@ const ReportScreen: React.FC<ReportScreenProps> = ({ data, onReset, onReview }) 
             padding: 0 !important; 
             margin: 0 !important; 
             display: block !important;
-            overflow: visible !important;
           }
         }
 
@@ -60,7 +60,7 @@ const ReportScreen: React.FC<ReportScreenProps> = ({ data, onReset, onReview }) 
         .report-content p { line-height: 1.6; }
       `}</style>
 
-      <div className="bg-white shadow-2xl md:p-0 print:shadow-none report-container overflow-hidden rounded-3xl border border-gray-100">
+      <div className="bg-white shadow-2xl md:p-0 print:shadow-none report-container overflow-hidden rounded-3xl border border-gray-100 print:rounded-none print:border-none">
         <div 
           className="report-content"
           dangerouslySetInnerHTML={{ __html: data.reportText }} 
