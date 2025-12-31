@@ -131,7 +131,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         <p class="italic mb-12 text-justify">"É a quantia mais provável pela qual se negocia voluntariamente e conscientemente um bem, numa data de referência, dentro das condições do mercado vigente."</p>
         <h4 class="font-bold text-gray-900 mb-2 uppercase text-xs tracking-wider">VALOR DE LIQUIDAÇÃO FORÇADA</h4>
         <p class="text-justify text-sm">O valor de liquidação forçada, apurado na presente avaliação, é assim definido no artigo técnico de autoria do Engº Nelson R.P. Alonso e Arqª Mônica D’Amato publicado na edição de agosto/setembro de 1998 do Jornal do IBAPE:</p>
-        <p class="italic text-justify text-sm mt-4">“Admitindo-se a liquidação forçada de um imóvel, aqui conceituada como a sua condição relativa à hipótese de uma venda compulsória ou em prazo menor que o médio de absorção pelo mercado... deve ser considerado a redução do valor de mercado de forma a compensar as partes envolvidas na transação, vendedor e comprador, respectivamente o ganho e a perda dos juros e correção monetária vigentes no mercado financeiro...”</p>
+        <p class="italic text-justify text-sm mt-4">“Admitindo-se a liquidação forçada de um imóvel, aqui conceituada como a sua condition relativa à hipótese de uma venda compulsória ou em prazo menor que o médio de absorção pelo mercado... deve ser considerado a redução do valor de mercado de forma a compensar as partes envolvidas na transação, vendedor e comprador, respectivamente o ganho e a perda dos juros e correção monetária vigentes no mercado financeiro...”</p>
       </div>
 
       <!-- PÁGINA 4: LIQUIDAÇÃO FORÇADA -->
@@ -163,18 +163,37 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
           <h3 class="text-2xl font-serif text-gray-400 mb-12 uppercase tracking-[0.15em] whitespace-nowrap">DETALHAMENTO DO MERCADO</h3>
           <div class="space-y-6">
             ${chunk.map((s, i) => `
-              <div class="border border-gray-200 rounded-3xl overflow-hidden shadow-sm bg-white">
-                <div class="bg-white text-gray-400 px-6 py-4 flex justify-between items-center text-[10px] font-bold uppercase tracking-widest border-b border-gray-50">
-                  <span class="text-gray-300">AMOSTRA #${(pIdx * 3) + i + 1}</span>
-                  <span>${s.city} - ${s.state} <span class="ml-4 opacity-70">OFERTA (0,90)</span></span>
+              <div class="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                <div class="bg-agro-700 text-white px-5 py-3 flex justify-between items-center font-bold text-[11px] uppercase tracking-wider">
+                  <span>AMOSTRA #${(pIdx * 3) + i + 1}</span>
+                  <span class="flex-1 text-center px-4">${s.city.toUpperCase()} - ${s.state}</span>
+                  <span class="bg-white/20 border border-white/30 px-3 py-1 rounded-full text-[10px]">OFERTA (0,90)</span>
                 </div>
-                <div class="grid grid-cols-2 text-[11px] p-6 gap-y-6">
-                  <div><p class="font-bold text-agro-700 uppercase text-[9px] mb-1">LOCALIZAÇÃO</p><p class="text-gray-800 font-medium">${s.neighborhood || s.city}</p></div>
-                  <div><p class="font-bold text-agro-700 uppercase text-[9px] mb-1">FONTE</p><p class="text-blue-600 font-bold truncate underline max-w-[200px]">${s.source}</p></div>
-                  <div><p class="font-bold text-agro-700 uppercase text-[9px] mb-1">ÁREA TOTAL</p><p class="text-gray-800 font-bold text-sm">${s.areaTotal} ${unit}</p></div>
-                  <div><p class="font-bold text-agro-700 uppercase text-[9px] mb-1">VALOR TOTAL</p><p class="text-gray-800 font-bold text-sm">${fmt.format(s.price)}</p></div>
-                  <div><p class="font-bold text-agro-700 uppercase text-[9px] mb-1">DESCRIÇÃO</p><p class="text-gray-500 line-clamp-1">${s.description || 'Imóvel disponível para venda no mercado local.'}</p></div>
-                  <div><p class="font-bold text-agro-700 uppercase text-[9px] mb-1">CARACTERÍSTICAS</p><p class="text-gray-800 font-bold">Q/B/V: ${s.bedrooms || 0}/${s.bathrooms || 0}/${s.parking || 0}</p></div>
+                <div class="grid grid-cols-2 border-t border-gray-200">
+                  <div class="p-4 border-r border-b border-gray-100">
+                    <p class="text-[9px] font-bold text-agro-700 uppercase mb-1 tracking-tight">LOCALIZAÇÃO</p>
+                    <p class="text-gray-900 text-xs font-semibold leading-tight">${s.neighborhood || s.city}</p>
+                  </div>
+                  <div class="p-4 border-b border-gray-100">
+                    <p class="text-[9px] font-bold text-agro-700 uppercase mb-1 tracking-tight">FONTE</p>
+                    <p class="text-gray-500 text-[9px] truncate max-w-[240px] leading-tight">${s.source || s.url || 'Mercado Imobiliário'}</p>
+                  </div>
+                  <div class="p-4 border-r border-b border-gray-100">
+                    <p class="text-[9px] font-bold text-agro-700 uppercase mb-1 tracking-tight">ÁREA TOTAL</p>
+                    <p class="text-gray-900 text-sm font-bold leading-tight">${s.areaTotal.toLocaleString('pt-BR')} ${unit}</p>
+                  </div>
+                  <div class="p-4 border-b border-gray-100">
+                    <p class="text-[9px] font-bold text-agro-700 uppercase mb-1 tracking-tight">VALOR TOTAL</p>
+                    <p class="text-gray-900 text-sm font-bold leading-tight">${fmt.format(s.price)}</p>
+                  </div>
+                  <div class="p-4 border-r border-gray-100">
+                    <p class="text-[9px] font-bold text-agro-700 uppercase mb-1 tracking-tight">DESCRIÇÃO</p>
+                    <p class="text-gray-600 text-[10px] line-clamp-2 leading-snug">${s.description || 'Imóvel disponível para venda conforme características informadas no anúncio.'}</p>
+                  </div>
+                  <div class="p-4">
+                    <p class="text-[9px] font-bold text-agro-700 uppercase mb-1 tracking-tight">CARACTERÍSTICAS</p>
+                    <p class="text-gray-900 text-xs font-bold leading-tight">Q/B/V: ${s.bedrooms || 0}/${s.bathrooms || 0}/${s.parking || 0}</p>
+                  </div>
                 </div>
               </div>
             `).join('')}
@@ -256,7 +275,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
       .report-page { 
         background: white; 
         width: 210mm; 
-        height: 296mm; /* Ajustado de 297mm para 296mm para criar buffer de segurança */
+        height: 296mm; 
         margin: 0 auto; 
         display: flex; 
         flex-direction: column; 
