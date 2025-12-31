@@ -12,7 +12,6 @@ import { generateManualValuation, generateUrbanAutomatedValuation } from './serv
 import { INITIAL_PROPERTY_DATA } from './constants';
 
 const App: React.FC = () => {
-  // O App inicia diretamente na seleção, sem telas de configuração de chave para o usuário
   const [currentStep, setCurrentStep] = useState<AppStep>(AppStep.SELECTION);
   const [propertyData, setPropertyData] = useState<PropertyData>(INITIAL_PROPERTY_DATA);
   const [valuationResult, setValuationResult] = useState<ValuationResult | null>(null);
@@ -38,17 +37,16 @@ const App: React.FC = () => {
       setCurrentStep(AppStep.RESULT);
     } catch (error: any) {
       console.error("Valuation Error:", error);
-      const msg = error instanceof Error ? error.message : String(error);
+      const msg = error.message || String(error);
       
-      // Detecção inteligente de falha na chave de API da Bandeira Agro
-      if (msg.includes("API Key") || msg.includes("API_KEY") || msg.includes("403") || msg.includes("invalid_argument")) {
-        alert("SISTEMA BANDEIRA AGRO: Falha na conexão com o motor de busca. Administrador, verifique se a API_KEY foi configurada corretamente na Vercel.");
+      if (msg.includes("403") || msg.includes("API key") || msg.includes("invalid_argument")) {
+        alert("ERRO DE CONFIGURAÇÃO: A chave de API da Bandeira Agro não foi detectada. Certifique-se de adicioná-la no painel da Vercel como API_KEY e realizar um 'Redeploy'.");
         setCurrentStep(AppStep.FORM);
       } else if (msg.includes("AMOSTRAS_INSUFICIENTES")) {
         alert("A IA não localizou amostras suficientes nesta região. Tente ampliar a área de busca ou conferir o nome da cidade.");
         setCurrentStep(AppStep.FORM);
       } else {
-        alert(`Ocorreu um problema inesperado: ${msg}. Tente novamente em instantes.`);
+        alert(`Ocorreu um problema inesperado: ${msg}. Tente novamente.`);
         setCurrentStep(AppStep.FORM);
       }
     }

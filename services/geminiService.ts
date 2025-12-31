@@ -1,12 +1,13 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { PropertyData, PropertyType, MarketSample } from "../types";
+import { PropertyData, MarketSample, PropertyType } from "../types";
 
 /**
- * Busca Amostras com Integração Profunda em Portais usando Modelos Pro
+ * Busca Amostras com Integração Profunda em Portais
+ * Utiliza process.env.API_KEY injetada pelo ambiente (Vercel/Vite)
  */
 export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = false): Promise<MarketSample[]> => {
-  // Cria a instância no momento da chamada para garantir que process.env.API_KEY esteja disponível
+  // Inicialização direta conforme diretrizes
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
   
   const locationContext = isDeepSearch 
@@ -26,7 +27,7 @@ export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = fal
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview', // Upgrade para Pro para maior precisão em dados financeiros
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
@@ -73,8 +74,8 @@ export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = fal
       bathrooms: s.bathrooms || 0,
       parking: s.parking || 0,
       conservationState: 'Bom'
-    })).filter((s: any) => s.price > 10000); // Filtro de segurança para evitar ruídos de leilão/aluguel
-  } catch (error) {
+    })).filter((s: any) => s.price > 10000);
+  } catch (error: any) {
     console.error("Erro na inteligência de mercado:", error);
     throw error;
   }
@@ -84,8 +85,9 @@ export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = fal
  * Extrai dados técnicos de uma URL de anúncio via IA
  */
 export const extractSampleFromUrl = async (url: string, type: PropertyType): Promise<Partial<MarketSample> | null> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+  
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
     const prompt = `Analise detalhadamente o anúncio deste link: ${url}. Extraia metadados técnicos específicos para um imóvel do tipo ${type}.`;
     
     const response = await ai.models.generateContent({
