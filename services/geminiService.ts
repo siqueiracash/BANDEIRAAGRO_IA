@@ -4,11 +4,16 @@ import { PropertyData, MarketSample, PropertyType } from "../types";
 
 /**
  * Busca Amostras com Integração Profunda em Portais
- * Cria a instância da IA no momento exato da chamada.
+ * Cria a instância da IA no momento exato da chamada para capturar a API_KEY do ambiente.
  */
 export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = false): Promise<MarketSample[]> => {
-  // Inicialização obrigatória dentro da função para capturar process.env.API_KEY atualizado
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    throw new Error("API Key must be set when running in a browser. Clique no botão de ativação na tela inicial.");
+  }
+
+  // SEMPRE criar uma nova instância aqui
+  const ai = new GoogleGenAI({ apiKey });
   
   const locationContext = isDeepSearch 
     ? `${data.city} ${data.state} (bairros limítrofes ao ${data.neighborhood || 'Centro'})`
@@ -85,7 +90,10 @@ export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = fal
  * Extrai dados técnicos de uma URL de anúncio via IA
  */
 export const extractSampleFromUrl = async (url: string, type: PropertyType): Promise<Partial<MarketSample> | null> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) return null;
+
+  const ai = new GoogleGenAI({ apiKey });
   
   try {
     const prompt = `Analise detalhadamente o anúncio deste link: ${url}. Extraia metadados técnicos específicos para um imóvel do tipo ${type}.`;

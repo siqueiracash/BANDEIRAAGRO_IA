@@ -20,11 +20,18 @@ const App: React.FC = () => {
   // Verifica se o usuário já selecionou uma chave de API
   useEffect(() => {
     const checkKey = async () => {
-      if ((window as any).aistudio) {
-        const selected = await (window as any).aistudio.hasSelectedApiKey();
-        setHasApiKey(selected);
-      } else {
-        // Fallback para desenvolvimento local se process.env.API_KEY existir
+      console.log("Checando disponibilidade de API Key...");
+      try {
+        if ((window as any).aistudio) {
+          const selected = await (window as any).aistudio.hasSelectedApiKey();
+          setHasApiKey(selected);
+        } else {
+          // Fallback para desenvolvimento ou se a chave já estiver no ambiente
+          const envKey = !!process.env.API_KEY;
+          setHasApiKey(envKey);
+        }
+      } catch (e) {
+        console.warn("Erro ao checar API Key:", e);
         setHasApiKey(!!process.env.API_KEY);
       }
     };
@@ -32,8 +39,17 @@ const App: React.FC = () => {
   }, []);
 
   const handleActivateKey = async () => {
-    if ((window as any).aistudio) {
-      await (window as any).aistudio.openSelectKey();
+    console.log("Tentando ativar motor de IA...");
+    try {
+      if ((window as any).aistudio) {
+        await (window as any).aistudio.openSelectKey();
+      } else {
+        console.warn("Objeto aistudio não detectado. Prosseguindo com chaves de ambiente.");
+      }
+    } catch (e) {
+      console.error("Erro ao abrir seletor de chaves:", e);
+    } finally {
+      // Como manda a diretriz: Assuma sucesso e prossiga imediatamente
       setHasApiKey(true);
     }
   };
@@ -61,7 +77,8 @@ const App: React.FC = () => {
       console.error("Valuation Error:", error);
       const msg = error.message || String(error);
       
-      if (msg.includes("API key") || msg.includes("set when running")) {
+      // Se falhar por causa da chave, reseta o estado para mostrar o seletor novamente
+      if (msg.includes("API key") || msg.includes("set when running") || msg.includes("401") || msg.includes("403")) {
         setHasApiKey(false);
         setCurrentStep(AppStep.FORM);
       } else if (msg.includes("AMOSTRAS_INSUFICIENTES")) {
