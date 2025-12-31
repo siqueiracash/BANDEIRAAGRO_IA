@@ -17,14 +17,13 @@ const App: React.FC = () => {
   const [valuationResult, setValuationResult] = useState<ValuationResult | null>(null);
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
 
-  // Verifica se o usuário já selecionou uma chave de API no carregamento
+  // Verifica se o usuário já selecionou uma chave de API
   useEffect(() => {
     const checkKey = async () => {
       try {
         if ((window as any).aistudio) {
           const selected = await (window as any).aistudio.hasSelectedApiKey();
-          // Além de checar o dialog, checamos se a variável de ambiente está presente
-          setHasApiKey(selected && !!process.env.API_KEY);
+          setHasApiKey(selected);
         } else {
           setHasApiKey(!!process.env.API_KEY);
         }
@@ -41,8 +40,8 @@ const App: React.FC = () => {
         await (window as any).aistudio.openSelectKey();
       }
     } finally {
-      // Pequeno atraso para o ambiente injetar a chave antes de liberar a tela
-      setTimeout(() => setHasApiKey(true), 500);
+      // Diretriz: Assumir sucesso após abrir o seletor e prosseguir
+      setHasApiKey(true);
     }
   };
 
@@ -52,12 +51,6 @@ const App: React.FC = () => {
   };
 
   const handleFormSubmit = async (data: PropertyData) => {
-    // Verificação de segurança de última milha
-    if (!process.env.API_KEY) {
-      setHasApiKey(false);
-      return;
-    }
-
     setPropertyData(data);
     setCurrentStep(AppStep.LOADING);
     
@@ -75,21 +68,19 @@ const App: React.FC = () => {
       console.error("Valuation Error:", error);
       const msg = error.message || String(error);
       
-      // Captura erros de chave ausente ou inválida e reseta para a tela de ativação
-      if (
-        msg.includes("MISSING_API_KEY") || 
-        msg.includes("API Key must be set") || 
-        msg.includes("Requested entity was not found") || 
-        msg.includes("401") || 
-        msg.includes("403")
-      ) {
+      // Regra oficial de reset de chave:
+      if (msg.includes("Requested entity was not found") || msg.includes("API key not found")) {
         setHasApiKey(false);
         setCurrentStep(AppStep.FORM);
+        alert("A sessão da chave expirou ou a chave é inválida. Por favor, ative novamente.");
       } else if (msg.includes("AMOSTRAS_INSUFICIENTES")) {
-        alert("A IA não localizou amostras suficientes nesta região. Tente ampliar a área de busca ou conferir o bairro.");
+        alert("Não encontramos dados suficientes nos portais para esta localização exata no momento. Tente um bairro maior ou cidade vizinha.");
         setCurrentStep(AppStep.FORM);
       } else {
-        alert(`Ocorreu um problema técnico: ${msg}`);
+        // Para qualquer outro erro (incluindo "API Key must be set"), mostramos o erro real para o usuário
+        // e permitimos que ele tente novamente sem forçar o loop da tela verde,
+        // a menos que ele decida voltar manualmente.
+        alert(`Ocorreu um erro no processamento: ${msg}`);
         setCurrentStep(AppStep.FORM);
       }
     }
