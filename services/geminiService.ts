@@ -2,9 +2,13 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { PropertyData, PropertyType, MarketSample } from "../types";
 
-// Always initialize with named parameter and process.env.API_KEY
+// Função para obter o cliente sempre com a chave atualizada do process.env
 const getAIClient = () => {
-  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    throw new Error("A chave de API não foi configurada. Por favor, clique em 'Habilitar Inteligência Artificial' no topo da página.");
+  }
+  return new GoogleGenAI({ apiKey });
 };
 
 /**
@@ -13,7 +17,6 @@ const getAIClient = () => {
 export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = false): Promise<MarketSample[]> => {
   const ai = getAIClient();
   
-  // Se for busca profunda, removemos a restrição de bairro para pegar a região
   const locationContext = isDeepSearch 
     ? `${data.city} ${data.state} (bairros próximos ao ${data.neighborhood || 'Centro'})`
     : `bairro "${data.neighborhood}" em ${data.city} ${data.state}`;
@@ -86,7 +89,7 @@ export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = fal
 
   } catch (error) {
     console.error("Erro na busca integrada:", error);
-    return [];
+    throw error; // Re-lança para ser capturado no App.tsx e tratar a chave
   }
 };
 
