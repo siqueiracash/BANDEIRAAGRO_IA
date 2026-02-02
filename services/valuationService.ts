@@ -100,7 +100,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
   const medianVuh = sortedVuhs[Math.floor(sortedVuhs.length / 2)];
   const finalPool = allProcessed
     .sort((a, b) => Math.abs(a.vuh - medianVuh) - Math.abs(b.vuh - medianVuh))
-    .slice(0, 8); // Aumentado para 8 amostras no laudo final se disponíveis
+    .slice(0, 10); 
 
   const vuhValues = finalPool.map(s => s.vuh);
   const avgVuh = vuhValues.reduce((a, b) => a + b, 0) / vuhValues.length;
@@ -239,40 +239,51 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
 };
 
 export const performValuation = async (data: PropertyData): Promise<ValuationResult> => {
+  // 1. Inicia pool com o que já temos no banco (Manual ou IA salva anteriormente)
   let pool: MarketSample[] = await filterSamples(data.type, data.city, data.state);
   
-  const cleanAndAdd = (newSamples: MarketSample[]) => {
-    newSamples.forEach(ns => {
-      if (!pool.some(p => (p.url && p.url === ns.url) || p.id === ns.id)) {
+  // Função para salvar no banco tudo o que a IA encontrar
+  const processAndSaveNewSamples = async (newSamples: MarketSample[]) => {
+    for (const ns of newSamples) {
+      // Verifica se já não existe no pool local antes de tentar salvar
+      if (!pool.some(p => (p.url && p.url === ns.url))) {
         pool.push(ns);
+        // Persistência automática no Supabase para futuras avaliações
+        try {
+          await saveSample(ns);
+        } catch (e) {
+          console.warn("Falha ao persistir amostra IA no banco:", e);
+        }
       }
-    });
+    }
   };
 
   // ETAPA 1: Busca Específica (Rua/Bairro)
-  try {
-    const s1 = await findMarketSamplesIA(data, 'specific');
-    cleanAndAdd(s1);
-  } catch (e) {}
+  if (pool.length < 5) {
+    try {
+      const s1 = await findMarketSamplesIA(data, 'specific');
+      await processAndSaveNewSamples(s1);
+    } catch (e) {}
+  }
 
-  // ETAPA 2: Busca Ampla (Se ainda faltar para o mínimo de 5 urbanos)
+  // ETAPA 2: Busca Ampla (Se ainda faltar para o mínimo)
   if (data.type === PropertyType.URBAN && pool.length < 5) {
     try {
       const s2 = await findMarketSamplesIA(data, 'broad');
-      cleanAndAdd(s2);
+      await processAndSaveNewSamples(s2);
     } catch (e) {}
   }
 
-  // ETAPA 3: Busca Radical (Cidade Inteira - Fallback final)
+  // ETAPA 3: Busca Radical (Cidade Inteira - Ex: São Caetano do Sul)
   if (data.type === PropertyType.URBAN && pool.length < 5) {
     try {
-      const s3 = await findMarketSamplesIA(data, 'city' as any);
-      cleanAndAdd(s3);
+      const s3 = await findMarketSamplesIA(data, 'city');
+      await processAndSaveNewSamples(s3);
     } catch (e) {}
   }
   
-  // Limpeza final de dados inconsistentes
-  const finalPool = pool.filter(v => v.price > 1000 && v.areaTotal > 5);
+  // Limpeza final para garantir sanidade dos dados
+  const finalPool = pool.filter(v => v.price > 1000 && v.areaTotal > 1);
   
   return calculateAndGenerateReport(data, finalPool);
 };

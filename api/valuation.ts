@@ -24,27 +24,27 @@ export default async function handler(request: any, response: any) {
       const state = data.state;
       const typeLabel = data.urbanSubType || data.ruralActivity || "Imóvel";
       
-      let locationContext = "";
+      let locationQuery = "";
       if (searchScope === 'specific') {
-        locationContext = `na Rua "${street}" ou no bairro "${neighborhood}" em ${city}/${state}`;
+        locationQuery = `Rua "${street}" ou Bairro "${neighborhood}" em ${city}, ${state}`;
       } else if (searchScope === 'broad') {
-        locationContext = `no bairro "${neighborhood}" e regiões vizinhas em ${city}/${state}`;
+        locationQuery = `Bairro "${neighborhood}" em ${city}, ${state}`;
       } else {
-        locationContext = `em toda a cidade de ${city}/${state} (Busca Ampla)`;
+        locationQuery = `em toda a cidade de ${city}, ${state}`;
       }
 
-      const prompt = `Aja como um Perito Avaliador Imobiliário sênior.
-      OBJETIVO: Você PRECISA encontrar obrigatoriamente pelo menos 15 anúncios reais de VENDA para ${typeLabel} ${locationContext}.
+      const prompt = `Você é um robô de extração de dados imobiliários especializado nos portais ZAP IMÓVEIS, VIVA REAL e IMOVELWEB.
       
-      FONTES OBRIGATÓRIAS: zapimoveis.com.br, vivareal.com.br, imovelweb.com.br, olx.com.br, quintoandar.com.br.
+      TAREFA: Encontre pelo menos 20 anúncios reais de VENDA de ${typeLabel} ${locationQuery}.
       
-      INSTRUÇÕES TÉCNICAS:
-      1. IGNORE locações. Foque apenas em VENDA.
-      2. Se não encontrar na rua exata, busque no quarteirão, no bairro ou na zona da cidade.
-      3. O laudo da Bandeira Agro exige 5 amostras válidas; por isso, retorne 15 para termos margem de erro.
-      4. Extraia o Preço Total (Price) e a Área (Area) com precisão.
+      REGRAS CRÍTICAS:
+      1. IGNORE locações/aluguel. Apenas VENDA.
+      2. Foque nos sites: zapimoveis.com.br, vivareal.com.br, imovelweb.com.br.
+      3. Extraia o valor total de venda e a metragem (m2).
+      4. Se for em ${city}, traga o máximo que encontrar. Não diga que não encontrou; os portais têm milhares de anúncios nesta cidade.
       
-      Retorne um ARRAY JSON contendo: title, price (número), area (número), neighborhood, source, url.`;
+      FORMATO DE SAÍDA:
+      Retorne APENAS um ARRAY JSON contendo objetos com: title, price (número), area (número), neighborhood, source, url.`;
 
       const genResult = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
@@ -74,7 +74,7 @@ export default async function handler(request: any, response: any) {
     }
 
     if (action === 'extractUrl') {
-      const prompt = `Analise anúncio no link: ${url}. Extraia preço, área e localização para ${type}. Retorne JSON.`;
+      const prompt = `Analise anúncio no link: ${url}. Extraia preço total de venda, área e localização. Retorne JSON.`;
       const genResult = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
