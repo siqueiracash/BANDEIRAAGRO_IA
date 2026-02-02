@@ -71,6 +71,10 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
   const fmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
   const unit = data.type === PropertyType.URBAN ? 'm²' : 'ha';
 
+  // Limpeza da string de localização para evitar vírgulas duplas
+  const locationParts = [data.address, data.neighborhood, data.city].filter(p => p && p.trim() !== "");
+  const locationDisplay = locationParts.join(', ') + (data.state ? ` - ${data.state}` : '');
+
   const reportHtml = `
     <div class="report-wrapper bg-[#f3f4f6] font-sans text-[13px] leading-tight text-gray-800">
       
@@ -104,7 +108,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         <div class="space-y-8">
           <div>
             <h3 class="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-1">LOCALIZAÇÃO DO IMÓVEL</h3>
-            <p class="text-[17px] font-bold text-gray-900">${data.address || ''}, ${data.neighborhood || ''}, ${data.city} - ${data.state}</p>
+            <p class="text-[17px] font-bold text-gray-900">${locationDisplay}</p>
           </div>
           <div>
             <h3 class="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-1">TIPO DE IMÓVEL</h3>
