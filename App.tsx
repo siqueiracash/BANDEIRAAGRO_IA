@@ -9,7 +9,7 @@ import LoginScreen from './components/LoginScreen';
 import AdminDashboard from './components/AdminDashboard';
 import ApiKeySetup from './components/ApiKeySetup';
 import { AppStep, PropertyData, PropertyType, ValuationResult } from './types';
-import { generateManualValuation, generateUrbanAutomatedValuation } from './services/valuationService';
+import { generateUrbanAutomatedValuation } from './services/valuationService';
 import { INITIAL_PROPERTY_DATA } from './constants';
 
 const App = () => {
@@ -40,14 +40,7 @@ const App = () => {
       setValuationResult(result);
       setCurrentStep(AppStep.RESULT);
     } catch (error: any) {
-      console.error("Erro Fatal na Avaliação:", error);
-      const msg = error.message || String(error);
-      
-      if (msg.includes("AMOSTRAS_INSUFICIENTES_CRITICO")) {
-        alert("O sistema não conseguiu encontrar nem mesmo 3 imóveis similares nesta região em nenhum portal. Por favor, cadastre uma amostra manual no Dashboard para servir de base.");
-      } else {
-        alert(`Ocorreu um erro técnico: ${msg}. Tentando reiniciar...`);
-      }
+      alert(error.message || "Erro ao processar avaliação. Tente novamente.");
       setCurrentStep(AppStep.FORM);
     }
   };

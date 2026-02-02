@@ -10,7 +10,7 @@ export default async function handler(request: any, response: any) {
   if (request.method !== 'POST') return response.status(405).json({ error: 'Method Not Allowed' });
 
   try {
-    const { action, data, url, type, searchScope } = request.body;
+    const { action, data, url, type } = request.body;
     const apiKey = process.env.API_KEY;
 
     if (!apiKey) return response.status(500).json({ error: "API_KEY_MISSING" });
@@ -23,19 +23,9 @@ export default async function handler(request: any, response: any) {
       const typeLabel = data.urbanSubType || data.ruralActivity || "Imóvel";
       const neighborhood = data.neighborhood || "";
       
-      const prompt = `Você é um especialista em mineração de dados imobiliários (Real Estate Data Scientist).
-      
-      TAREFA CRÍTICA: Extraia pelo menos 30 anúncios de VENDA reais para: ${typeLabel} em ${city}/${state}.
-      
-      INSTRUÇÕES DE BUSCA:
-      1. Use o Google Search para encontrar links nos portais: zapimoveis.com.br, vivareal.com.br, imovelweb.com.br, olx.com.br.
-      2. Foque PRIMEIRO no bairro "${neighborhood}", mas se houver poucos resultados, colete de toda a cidade de ${city}.
-      3. Extraia: Título, Preço Total de Venda (Price), Área útil/total (Area), Bairro e a URL original.
-      4. IGNORE QUALQUER ANÚNCIO DE ALUGUEL. Apenas VENDA.
-      5. Não pare até ter pelo menos 20-30 itens. São Caetano do Sul e cidades similares possuem milhares de ofertas; sua missão é trazer uma lista farta para o banco de dados da BANDEIRA AGRO.
-      
-      FORMATO DE RETORNO:
-      Um ARRAY JSON estrito. Cada objeto deve ter: title, price (número), area (número), neighborhood, source, url.`;
+      const prompt = `Aja como um perito avaliador. Localize anúncios de VENDA de ${typeLabel} em ${city}/${state}, preferencialmente no bairro ${neighborhood}. 
+      Extraia: Título, Preço (Price), Área (Area), Bairro e URL.
+      Retorne APENAS um ARRAY JSON de objetos.`;
 
       const genResult = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
@@ -55,7 +45,7 @@ export default async function handler(request: any, response: any) {
                 source: { type: Type.STRING },
                 url: { type: Type.STRING }
               },
-              required: ["price", "area", "url"]
+              required: ["price", "area"]
             }
           }
         }
@@ -65,7 +55,7 @@ export default async function handler(request: any, response: any) {
     }
 
     if (action === 'extractUrl') {
-      const prompt = `Extraia dados de venda (Preço, Área, Bairro) deste link: ${url}. Retorne JSON.`;
+      const prompt = `Extraia os dados de venda (Preço, Área, Bairro) do anúncio: ${url}. Retorne JSON.`;
       const genResult = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
@@ -80,6 +70,6 @@ export default async function handler(request: any, response: any) {
     return response.status(400).json({ error: "INVALID_ACTION" });
 
   } catch (error: any) {
-    return response.status(500).json({ error: error.message || "Internal Error" });
+    return response.status(500).json({ error: "Erro interno no servidor de avaliação." });
   }
 }
