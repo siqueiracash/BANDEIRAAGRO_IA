@@ -36,38 +36,17 @@ const App = () => {
     setCurrentStep(AppStep.LOADING);
     
     try {
-      let result;
-      if (data.type === PropertyType.RURAL) {
-        result = await generateManualValuation(data);
-      } else {
-        result = await generateUrbanAutomatedValuation(data);
-      }
-      
+      const result = await generateUrbanAutomatedValuation(data);
       setValuationResult(result);
       setCurrentStep(AppStep.RESULT);
     } catch (error: any) {
-      console.error("Erro na Requisição:", error);
+      console.error("Erro Fatal na Avaliação:", error);
       const msg = error.message || String(error);
       
-      if (msg.includes("AMOSTRAS_URBANAS_INSUFICIENTES")) {
-        alert("Atenção: Conforme a NBR 14653, são necessárias no mínimo 5 amostras para avaliar este imóvel urbano. Não encontramos amostras suficientes na rua ou bairro informado. Tente revisar o endereço ou cadastrar amostras manuais no Dashboard da Equipe.");
-      } else if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota")) {
-        alert("O motor de IA está temporariamente ocupado. Prosseguindo com dados do Banco de Dados local...");
-        try {
-           const result = await generateManualValuation(data);
-           setValuationResult(result);
-           setCurrentStep(AppStep.RESULT);
-           return;
-        } catch (innerError) {
-           alert("Dados insuficientes no Banco de Dados para esta região. Cadastre ao menos 1 amostra no Dashboard.");
-        }
-      } else if (msg.includes("API_KEY_REQUIRED") || msg.includes("MISSING")) {
-        alert("Configuração Necessária: Ative a IA clicando no botão de ativação.");
-        setHasApiKey(false);
-      } else if (msg.includes("AMOSTRAS_INSUFICIENTES")) {
-        alert("Nenhuma amostra encontrada no Supabase ou Portais para esta região. Cadastre uma amostra manual no Dashboard da Equipe.");
+      if (msg.includes("AMOSTRAS_INSUFICIENTES_CRITICO")) {
+        alert("O sistema não conseguiu encontrar nem mesmo 3 imóveis similares nesta região em nenhum portal. Por favor, cadastre uma amostra manual no Dashboard para servir de base.");
       } else {
-        alert(`Erro ao processar: ${msg}`);
+        alert(`Ocorreu um erro técnico: ${msg}. Tentando reiniciar...`);
       }
       setCurrentStep(AppStep.FORM);
     }

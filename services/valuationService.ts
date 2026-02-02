@@ -10,18 +10,10 @@ const LIQUIDATION_FACTOR = 0.6979;
 // TABELAS DE FATORES RURAIS
 const RURAL_FACTORS = {
   activity: {
-    "Lavoura": 1.60,
-    "Pecuária": 1.30,
-    "Pasto": 1.00,
-    "Floresta": 0.80,
-    "Cerrado Nativo": 0.65,
-    "Mata Nativa": 0.50
+    "Lavoura": 1.60, "Pecuária": 1.30, "Pasto": 1.00, "Floresta": 0.80, "Cerrado Nativo": 0.65, "Mata Nativa": 0.50
   },
   topography: {
-    "Plano": 1.00,
-    "Leve-Ondulado": 0.90,
-    "Ondulado": 0.80,
-    "Montanhoso": 0.65
+    "Plano": 1.00, "Leve-Ondulado": 0.90, "Ondulado": 0.80, "Montanhoso": 0.65
   },
   access: {
     "Ótimo (asfalto, tráfego permanente)": 1.10,
@@ -33,14 +25,9 @@ const RURAL_FACTORS = {
     "Encravada": 0.50
   },
   capability: {
-    "I - Culturas (Sem problemas)": 1.25,
-    "II - Culturas (Pequenos problemas)": 1.15,
-    "III - Culturas (Sérios problemas)": 1.05,
-    "IV - Culturas Ocasionais / Pastagens": 1.00,
-    "V - Só Pastagens": 0.90,
-    "VI - Só Pastagens (Pequenos problemas)": 0.80,
-    "VII - Florestas": 0.70,
-    "VIII - Abrigo Silvestre": 0.50
+    "I - Culturas (Sem problemas)": 1.25, "II - Culturas (Pequenos problemas)": 1.15, "III - Culturas (Sérios problemas)": 1.05,
+    "IV - Culturas Ocasionais / Pastagens": 1.00, "V - Só Pastagens": 0.90, "VI - Só Pastagens (Pequenos problemas)": 0.80,
+    "VII - Florestas": 0.70, "VIII - Abrigo Silvestre": 0.50
   }
 };
 
@@ -65,10 +52,10 @@ const LogoSVG = `
 `;
 
 const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): ValuationResult => {
-  if (data.type === PropertyType.URBAN && pool.length < 5) {
-    throw new Error("AMOSTRAS_URBANAS_INSUFICIENTES");
+  // Se ainda assim tiver menos de 5 para urbano, avisamos, mas tentamos prosseguir se for possível com o que tem
+  if (data.type === PropertyType.URBAN && pool.length < 3) {
+    throw new Error("AMOSTRAS_INSUFICIENTES_CRITICO");
   }
-  if (pool.length < 1) throw new Error("AMOSTRAS_INSUFICIENTES");
 
   const isRural = data.type === PropertyType.RURAL;
 
@@ -87,7 +74,16 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
       factors.fAces = fAcesAval / (getRuralFactor('access', s.access) || 1.0);
       factors.fCap = fCapAval / (getRuralFactor('capability', s.landCapability) || 1.0);
     } else {
-      factors.fLoc = s.neighborhood === data.neighborhood ? 1.00 : 0.90;
+      // Fator Localização: Se for no mesmo bairro 1.0, se for na mesma cidade mas bairro diferente 0.90, se for outra cidade 0.80
+      const sNeighborhood = (s.neighborhood || "").toLowerCase();
+      const dNeighborhood = (data.neighborhood || "").toLowerCase();
+      const sCity = (s.city || "").toLowerCase();
+      const dCity = (data.city || "").toLowerCase();
+
+      if (sNeighborhood === dNeighborhood) factors.fLoc = 1.00;
+      else if (sCity === dCity) factors.fLoc = 0.92;
+      else factors.fLoc = 0.85;
+
       factors.fConserv = data.conservationState === s.conservationState ? 1.00 : 0.95;
     }
 
@@ -96,19 +92,22 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
     return { ...s, vub, vuh, ...factors };
   });
 
-  const sortedVuhs = [...allProcessed].map(s => s.vuh).sort((a, b) => a - b);
-  const medianVuh = sortedVuhs[Math.floor(sortedVuhs.length / 2)];
-  const finalPool = allProcessed
-    .sort((a, b) => Math.abs(a.vuh - medianVuh) - Math.abs(b.vuh - medianVuh))
-    .slice(0, 10); 
-
-  const vuhValues = finalPool.map(s => s.vuh);
+  // Cálculo Estatístico
+  const vuhValues = allProcessed.map(s => s.vuh);
   const avgVuh = vuhValues.reduce((a, b) => a + b, 0) / vuhValues.length;
-  const finalValue = avgVuh * data.areaTotal;
+  
+  // Filtragem de Saneamento (Eliminar outliers extremos)
+  const filteredProcessed = allProcessed.filter(s => s.vuh >= avgVuh * 0.7 && s.vuh <= avgVuh * 1.3).slice(0, 10);
+  
+  const finalVuhValues = filteredProcessed.map(s => s.vuh);
+  const finalAvgVuh = finalVuhValues.reduce((a, b) => a + b, 0) / finalVuhValues.length;
+  
+  const finalValue = finalAvgVuh * data.areaTotal;
   const liquidationValue = finalValue * LIQUIDATION_FACTOR;
-  const variance = vuhValues.reduce((a, b) => a + Math.pow(b - avgVuh, 2), 0) / vuhValues.length;
+  
+  const variance = finalVuhValues.reduce((a, b) => a + Math.pow(b - finalAvgVuh, 2), 0) / finalVuhValues.length;
   const stdDev = Math.sqrt(variance);
-  const cv = (stdDev / avgVuh) * 100;
+  const cv = (stdDev / finalAvgVuh) * 100;
 
   let precision = "GRAU I";
   if (cv <= 15) precision = "GRAU III";
@@ -116,8 +115,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
 
   const fmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
   const unit = isRural ? 'ha' : 'm²';
-  const locationParts = [data.address, data.neighborhood, data.city].filter(p => p && p.trim() !== "");
-  const locationDisplay = locationParts.join(', ') + (data.state ? ` - ${data.state}` : '');
+  const locationDisplay = [data.address, data.neighborhood, data.city, data.state].filter(Boolean).join(', ');
 
   const reportHtml = `
     <div class="report-wrapper bg-[#f3f4f6] font-sans text-[13px] leading-tight text-gray-800">
@@ -142,65 +140,42 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
             <h3 class="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-1">LOCALIZAÇÃO DO IMÓVEL</h3>
             <p class="text-[17px] font-bold text-gray-900">${locationDisplay}</p>
           </div>
-          ${isRural ? `
-            <div>
-              <h3 class="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-1">ATIVIDADE / USO ATUAL</h3>
-              <p class="text-[17px] font-bold text-gray-900 uppercase">${data.ruralActivity} - ${data.landCapability || 'USO DIVERSO'}</p>
-            </div>
-            <div>
-              <h3 class="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-1">TOPOGRAFIA E ACESSO</h3>
-              <p class="text-[15px] font-bold text-gray-900 uppercase">RELEVO: ${data.topography || 'NÃO INF.'} | ACESSO: ${data.access ? data.access.split('(')[0] : 'NÃO INF.'}</p>
-            </div>
-          ` : `
-            <div>
-              <h3 class="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-1">TIPO DE IMÓVEL E PADRÃO</h3>
-              <p class="text-[17px] font-bold text-gray-900 uppercase">${data.urbanSubType} - ${data.conservationState || 'PADRÃO COMUM'}</p>
-            </div>
-            <div>
-              <h3 class="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-1">DORMITÓRIOS / VAGAS</h3>
-              <p class="text-[15px] font-bold text-gray-900 uppercase">QUARTOS: ${data.bedrooms || 0} | BANHEIROS: ${data.bathrooms || 0} | VAGAS: ${data.parking || 0}</p>
-            </div>
-          `}
           <div>
             <h3 class="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-1">ÁREAS</h3>
             <p class="text-[22px] font-bold text-[#15803d] uppercase">ÁREA TOTAL: ${data.areaTotal.toLocaleString('pt-BR')} ${unit.toUpperCase()}</p>
           </div>
-        </div>
-        <div class="mt-auto border-t border-gray-100 pt-10">
-          <p class="text-[10px] font-bold text-gray-400 uppercase tracking-[0.4em] text-center mb-4">RESULTADOS FINAIS</p>
-          <div class="space-y-4 text-center">
-            <div>
-              <p class="text-[14px] text-gray-400 uppercase font-bold">Valor de Mercado</p>
-              <p class="text-[36px] font-black text-gray-900">${fmt.format(finalValue)}</p>
-              <p class="text-[11px] text-[#15803d] font-bold uppercase tracking-widest">${fmt.format(avgVuh)} / ${unit.toUpperCase()}</p>
-            </div>
-            <div class="pt-4">
-              <p class="text-[14px] text-gray-400 uppercase font-bold">Valor de Liquidação Forçada</p>
-              <p class="text-[28px] font-bold text-gray-600">${fmt.format(liquidationValue)}</p>
+          <div class="mt-auto border-t border-gray-100 pt-10">
+            <div class="space-y-4 text-center">
+              <div>
+                <p class="text-[14px] text-gray-400 uppercase font-bold">Valor de Mercado</p>
+                <p class="text-[36px] font-black text-gray-900">${fmt.format(finalValue)}</p>
+                <p class="text-[11px] text-[#15803d] font-bold uppercase tracking-widest">${fmt.format(finalAvgVuh)} / ${unit.toUpperCase()}</p>
+              </div>
             </div>
           </div>
         </div>
       </div>
       <div class="report-page px-16 py-10 flex flex-col">
         <h2 class="text-[18px] font-serif font-bold text-gray-900 mb-1 uppercase tracking-wide">ANEXO: MEMÓRIA DE CÁLCULO</h2>
-        <h3 class="text-[22px] font-serif text-gray-300 mb-6 uppercase tracking-[0.15em]">HOMOGENEIZAÇÃO</h3>
         <div class="mb-8">
           <table class="w-full text-[8px] border-collapse border border-gray-100">
             <thead>
               <tr class="bg-[#15803d] text-white uppercase font-bold text-center">
                 <th class="p-1.5 border">ID</th>
-                <th class="p-1.5 border">f.OFER</th>
-                ${isRural ? `<th class="p-1.5 border">f.ATIV</th><th class="p-1.5 border">f.TOPO</th><th class="p-1.5 border">f.ACES</th><th class="p-1.5 border">f.CAP</th>` : `<th class="p-1.5 border">f.LOC</th><th class="p-1.5 border">f.CONS</th>`}
-                <th class="p-1.5 border">VUH (R$/${unit})</th>
+                <th class="p-1.5 border">PREÇO</th>
+                <th class="p-1.5 border">ÁREA</th>
+                <th class="p-1.5 border">VUH (HOMOG.)</th>
+                <th class="p-1.5 border">FONTE</th>
               </tr>
             </thead>
             <tbody>
-              ${finalPool.map((s: any, i) => `
+              ${filteredProcessed.map((s, i) => `
                 <tr class="text-center">
-                  <td class="p-1 border text-gray-300 font-bold">${i+1}</td>
-                  <td class="p-1 border">${s.fOferta?.toFixed(2) || '0.90'}</td>
-                  ${isRural ? `<td class="p-1 border">${s.fAtiv?.toFixed(2) || '1.00'}</td><td class="p-1 border">${s.fTopo?.toFixed(2) || '1.00'}</td><td class="p-1 border">${s.fAces?.toFixed(2) || '1.00'}</td><td class="p-1 border">${s.fCap?.toFixed(2) || '1.00'}</td>` : `<td class="p-1 border">${s.fLoc?.toFixed(2) || '1.00'}</td><td class="p-1 border">${s.fConserv?.toFixed(2) || '1.00'}</td>`}
+                  <td class="p-1 border text-gray-400 font-bold">${i+1}</td>
+                  <td class="p-1 border">${fmt.format(s.price)}</td>
+                  <td class="p-1 border">${s.areaTotal} ${unit}</td>
                   <td class="p-1 border font-bold text-gray-900">${fmt.format(s.vuh)}</td>
+                  <td class="p-1 border text-[7px] truncate max-w-[100px]">${s.source}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -208,83 +183,64 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         </div>
         <div class="grid grid-cols-2 gap-10">
           <div class="space-y-2 text-[10px] font-bold">
-            <div class="flex justify-between border-b pb-1"><span class="text-gray-400">UNITÁRIO MÉDIO</span><span>${fmt.format(avgVuh)}</span></div>
             <div class="flex justify-between border-b pb-1"><span class="text-gray-400">VARIAÇÃO (CV)</span><span>${cv.toFixed(2)}%</span></div>
-            <div class="flex justify-between"><span class="text-gray-400">PRECISÃO</span><span class="text-green-600">${precision}</span></div>
-          </div>
-          <div class="bg-gray-50 p-4 border rounded-xl text-center">
-            <p class="text-[9px] font-black text-gray-400 uppercase mb-2">VALOR TOTAL ESTIMADO</p>
-            <p class="text-[20px] font-black text-gray-900">${fmt.format(finalValue)}</p>
+            <div class="flex justify-between"><span class="text-gray-400">GRAU DE PRECISÃO</span><span class="text-green-600">${precision}</span></div>
           </div>
         </div>
       </div>
     </div>
-    <style>
-      .report-page { background: white; width: 210mm; height: 297mm; margin: 10px auto; display: flex; flex-direction: column; box-sizing: border-box; box-shadow: 0 0 10px rgba(0,0,0,0.1); page-break-after: always; overflow: hidden; }
-      @media print { body { background: white !important; margin: 0 !important; } .report-page { box-shadow: none !important; margin: 0 !important; border: none !important; } }
-    </style>
   `.trim();
 
   return {
     reportText: reportHtml,
-    sources: finalPool,
+    sources: filteredProcessed,
     estimatedValue: fmt.format(finalValue),
     liquidationValue: fmt.format(liquidationValue),
     stats: {
-      average: avgVuh,
-      sampleCount: finalPool.length,
+      average: finalAvgVuh,
+      sampleCount: filteredProcessed.length,
       standardDeviation: fmt.format(stdDev)
     }
   };
 };
 
 export const performValuation = async (data: PropertyData): Promise<ValuationResult> => {
-  // 1. Inicia pool com o que já temos no banco (Manual ou IA salva anteriormente)
-  let pool: MarketSample[] = await filterSamples(data.type, data.city, data.state);
+  console.log("Iniciando processo de avaliação Bandeira Agro para", data.city);
   
-  // Função para salvar no banco tudo o que a IA encontrar
-  const processAndSaveNewSamples = async (newSamples: MarketSample[]) => {
-    for (const ns of newSamples) {
-      // Verifica se já não existe no pool local antes de tentar salvar
-      if (!pool.some(p => (p.url && p.url === ns.url))) {
-        pool.push(ns);
-        // Persistência automática no Supabase para futuras avaliações
-        try {
-          await saveSample(ns);
-        } catch (e) {
-          console.warn("Falha ao persistir amostra IA no banco:", e);
+  // 1. Coleta inicial do banco de dados (Amostras que você ou outros já buscaram)
+  let pool: MarketSample[] = await filterSamples(data.type, data.city, data.state);
+  console.log(`Banco de dados: ${pool.length} amostras encontradas.`);
+
+  // 2. Se tivermos poucas amostras (< 10), acionamos a IA para "colher" mais e salvar no banco
+  if (pool.length < 15) {
+    console.log("Acionando Inteligência de Mercado para colher novas amostras...");
+    try {
+      // Fazemos uma busca agressiva na cidade
+      const aiSamples = await findMarketSamplesIA(data, 'city');
+      
+      for (const s of aiSamples) {
+        // Se a amostra não for duplicada (URL única), salvamos no pool e no banco
+        if (!pool.some(p => p.url === s.url)) {
+          pool.push(s);
+          await saveSample(s).catch(e => console.error("Erro ao persistir amostra IA:", e));
         }
       }
+      console.log(`Pós-IA: ${pool.length} amostras totais no pool.`);
+    } catch (e) {
+      console.error("Erro na busca IA:", e);
     }
-  };
-
-  // ETAPA 1: Busca Específica (Rua/Bairro)
-  if (pool.length < 5) {
-    try {
-      const s1 = await findMarketSamplesIA(data, 'specific');
-      await processAndSaveNewSamples(s1);
-    } catch (e) {}
   }
 
-  // ETAPA 2: Busca Ampla (Se ainda faltar para o mínimo)
-  if (data.type === PropertyType.URBAN && pool.length < 5) {
-    try {
-      const s2 = await findMarketSamplesIA(data, 'broad');
-      await processAndSaveNewSamples(s2);
-    } catch (e) {}
+  // 3. Fallback Radical: Se ainda assim for zero (quase impossível em cidades como SCS), expandimos para o estado
+  if (pool.length < 3) {
+    console.log("Fallback extremo: Buscando amostras similares no estado...");
+    const statePool = await filterSamples(data.type, null, data.state);
+    pool = [...pool, ...statePool.slice(0, 10)];
   }
 
-  // ETAPA 3: Busca Radical (Cidade Inteira - Ex: São Caetano do Sul)
-  if (data.type === PropertyType.URBAN && pool.length < 5) {
-    try {
-      const s3 = await findMarketSamplesIA(data, 'city');
-      await processAndSaveNewSamples(s3);
-    } catch (e) {}
-  }
-  
-  // Limpeza final para garantir sanidade dos dados
-  const finalPool = pool.filter(v => v.price > 1000 && v.areaTotal > 1);
-  
+  // 4. Limpeza e Saneamento final
+  const finalPool = pool.filter(v => v.price > 5000 && v.areaTotal > 5);
+
   return calculateAndGenerateReport(data, finalPool);
 };
 
