@@ -49,9 +49,10 @@ const App = () => {
       console.error("Erro na Requisição:", error);
       const msg = error.message || String(error);
       
-      if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota")) {
+      if (msg.includes("AMOSTRAS_URBANAS_INSUFICIENTES")) {
+        alert("Atenção: Conforme a NBR 14653, são necessárias no mínimo 5 amostras para avaliar este imóvel urbano. Não encontramos amostras suficientes na rua ou bairro informado. Tente revisar o endereço ou cadastrar amostras manuais no Dashboard da Equipe.");
+      } else if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota")) {
         alert("O motor de IA está temporariamente ocupado. Prosseguindo com dados do Banco de Dados local...");
-        // Tentamos novamente forçando apenas o Banco de Dados se a IA falhar
         try {
            const result = await generateManualValuation(data);
            setValuationResult(result);

@@ -65,6 +65,11 @@ const LogoSVG = `
 `;
 
 const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): ValuationResult => {
+  // Requisito: Mínimo 5 amostras para urbano
+  if (data.type === PropertyType.URBAN && pool.length < 5) {
+    throw new Error("AMOSTRAS_URBANAS_INSUFICIENTES");
+  }
+  
   if (pool.length < 1) throw new Error("AMOSTRAS_INSUFICIENTES");
 
   const isRural = data.type === PropertyType.RURAL;
@@ -76,7 +81,6 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
     const factors: Record<string, number> = { fOferta };
 
     if (isRural) {
-      // Cálculo Rural
       const fAtivAval = getRuralFactor('activity', data.ruralActivity);
       const fTopoAval = getRuralFactor('topography', data.topography);
       const fAcesAval = getRuralFactor('access', data.access);
@@ -87,7 +91,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
       factors.fAces = fAcesAval / (getRuralFactor('access', s.access) || 1.0);
       factors.fCap = fCapAval / (getRuralFactor('capability', s.landCapability) || 1.0);
     } else {
-      // Cálculo Urbano
+      // Homogeneização Urbana básica
       factors.fLoc = s.neighborhood === data.neighborhood ? 1.00 : 0.90;
       factors.fConserv = data.conservationState === s.conservationState ? 1.00 : 0.95;
     }
@@ -98,9 +102,11 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
     return { ...s, vub, vuh, ...factors };
   });
 
-  // ESTATÍSTICA
+  // ESTATÍSTICA (Saneamento de dados)
   const sortedVuhs = [...allProcessed].map(s => s.vuh).sort((a, b) => a - b);
   const medianVuh = sortedVuhs[Math.floor(sortedVuhs.length / 2)];
+  
+  // Pegamos as 6 amostras mais próximas da mediana para reduzir distorções
   const finalPool = allProcessed
     .sort((a, b) => Math.abs(a.vuh - medianVuh) - Math.abs(b.vuh - medianVuh))
     .slice(0, 6);
@@ -121,14 +127,11 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
   const fmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
   const unit = isRural ? 'ha' : 'm²';
 
-  // HTML RENDERING
   const locationParts = [data.address, data.neighborhood, data.city].filter(p => p && p.trim() !== "");
   const locationDisplay = locationParts.join(', ') + (data.state ? ` - ${data.state}` : '');
 
   const reportHtml = `
     <div class="report-wrapper bg-[#f3f4f6] font-sans text-[13px] leading-tight text-gray-800">
-      
-      <!-- PÁGINA 1: CAPA -->
       <div class="report-page px-16 pt-32 pb-16 flex flex-col items-center justify-between">
         <div>${LogoSVG}</div>
         <div class="text-center">
@@ -144,16 +147,13 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         </div>
       </div>
 
-      <!-- PÁGINA 2: RESUMO -->
       <div class="report-page px-16 py-16 flex flex-col">
         <h2 class="text-[26px] font-serif font-bold text-[#15803d] text-center mb-12 uppercase tracking-[0.2em]">RESUMO DA AVALIAÇÃO</h2>
-        
         <div class="space-y-8">
           <div>
             <h3 class="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-1">LOCALIZAÇÃO DO IMÓVEL</h3>
             <p class="text-[17px] font-bold text-gray-900">${locationDisplay}</p>
           </div>
-          
           ${isRural ? `
             <div>
               <h3 class="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-1">ATIVIDADE / USO ATUAL</h3>
@@ -173,13 +173,11 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
               <p class="text-[15px] font-bold text-gray-900 uppercase">QUARTOS: ${data.bedrooms || 0} | BANHEIROS: ${data.bathrooms || 0} | VAGAS: ${data.parking || 0}</p>
             </div>
           `}
-          
           <div>
             <h3 class="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-1">ÁREAS</h3>
             <p class="text-[22px] font-bold text-[#15803d] uppercase">ÁREA TOTAL: ${data.areaTotal.toLocaleString('pt-BR')} ${unit.toUpperCase()}</p>
           </div>
         </div>
-
         <div class="mt-auto border-t border-gray-100 pt-10">
           <p class="text-[10px] font-bold text-gray-400 uppercase tracking-[0.4em] text-center mb-4">RESULTADOS FINAIS</p>
           <div class="space-y-4 text-center">
@@ -196,11 +194,9 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         </div>
       </div>
 
-      <!-- PÁGINA 3: MEMÓRIA DE CÁLCULO -->
       <div class="report-page px-16 py-10 flex flex-col">
         <h2 class="text-[18px] font-serif font-bold text-gray-900 mb-1 uppercase tracking-wide">ANEXO: MEMÓRIA DE CÁLCULO</h2>
         <h3 class="text-[22px] font-serif text-gray-300 mb-6 uppercase tracking-[0.15em]">HOMOGENEIZAÇÃO</h3>
-        
         <div class="mb-8">
           <table class="w-full text-[8px] border-collapse border border-gray-100">
             <thead>
@@ -239,7 +235,6 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
             </tbody>
           </table>
         </div>
-
         <div class="grid grid-cols-2 gap-10">
           <div class="space-y-2 text-[10px] font-bold">
             <div class="flex justify-between border-b pb-1"><span class="text-gray-400">UNITÁRIO MÉDIO</span><span>${fmt.format(avgVuh)}</span></div>
@@ -252,9 +247,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
           </div>
         </div>
       </div>
-
     </div>
-
     <style>
       .report-page { background: white; width: 210mm; height: 297mm; margin: 10px auto; display: flex; flex-direction: column; box-sizing: border-box; box-shadow: 0 0 10px rgba(0,0,0,0.1); page-break-after: always; overflow: hidden; }
       @media print { body { background: white !important; margin: 0 !important; } .report-page { box-shadow: none !important; margin: 0 !important; border: none !important; } }
@@ -285,7 +278,8 @@ export const performValuation = async (data: PropertyData): Promise<ValuationRes
     });
   }
 
-  if (pool.length < 6) {
+  // Se o pool for menor que o desejado (8 para garantir 6 após saneamento), acionamos a IA
+  if (pool.length < 8) {
     try {
       const aiSamples = await findMarketSamplesIA(data);
       if (aiSamples.length > 0) {
@@ -294,6 +288,7 @@ export const performValuation = async (data: PropertyData): Promise<ValuationRes
     } catch (e) {}
   }
   
+  // Limpeza de duplicatas e valores inválidos
   const finalPool = pool.filter((v, i, a) => 
     v.price > 0 && v.areaTotal > 0 && 
     a.findIndex(t => (t.url && t.url === v.url) || t.id === v.id) === i

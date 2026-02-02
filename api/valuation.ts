@@ -18,11 +18,19 @@ export default async function handler(request: any, response: any) {
     const ai = new GoogleGenAI({ apiKey });
 
     if (action === 'findSamples') {
-      const location = `${data.neighborhood || 'Centro'}, ${data.city}/${data.state}`;
+      const street = data.address || '';
+      const neighborhood = data.neighborhood || 'Centro';
+      const city = data.city;
+      const state = data.state;
       const typeLabel = data.urbanSubType || data.ruralActivity || "Imóvel";
       
-      const prompt = `Busque 6 anúncios reais de venda para ${typeLabel} em ${location}. 
-      Retorne ARRAY JSON: title, price, area, neighborhood, source, url.`;
+      const prompt = `Busque rigorosamente pelo menos 6 anúncios de venda para ${typeLabel} em ${city}/${state}. 
+      HIERARQUIA DE BUSCA OBRIGATÓRIA:
+      1. Tente encontrar na mesma rua: "${street}".
+      2. Se não houver o suficiente, busque no bairro: "${neighborhood}".
+      3. Se ainda faltarem amostras, busque nos bairros mais próximos e limítrofes.
+      
+      Retorne um ARRAY JSON contendo: title, price (número), area (número), neighborhood, source, url.`;
 
       const genResult = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
@@ -52,7 +60,7 @@ export default async function handler(request: any, response: any) {
     }
 
     if (action === 'extractUrl') {
-      const prompt = `Analise anúncio: ${url}. Extraia preço, área e local para ${type}. Retorne JSON.`;
+      const prompt = `Analise anúncio no link: ${url}. Extraia preço, área e localização para ${type}. Retorne JSON.`;
       const genResult = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
