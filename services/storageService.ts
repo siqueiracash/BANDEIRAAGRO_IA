@@ -81,7 +81,7 @@ export const getSamples = async (): Promise<MarketSample[]> => {
   return error ? [] : data;
 };
 
-export const filterSamples = async (type: PropertyType, city: string, state: string): Promise<MarketSample[]> => {
+export const filterSamples = async (type: PropertyType, city: string | null, state: string): Promise<MarketSample[]> => {
   if (!supabase) {
     return getLocalSamples().filter(s => 
       s.type === type && 
@@ -91,7 +91,9 @@ export const filterSamples = async (type: PropertyType, city: string, state: str
   }
   try {
     let query = supabase.from(TABLE_NAME).select('*').eq('type', type).eq('state', state);
-    if (city) query = query.ilike('city', city);
+    if (city) {
+      query = query.ilike('city', city);
+    }
     const { data, error } = await query;
     if (error) throw error;
     return data || [];

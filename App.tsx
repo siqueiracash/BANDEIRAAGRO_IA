@@ -50,14 +50,23 @@ const App = () => {
       const msg = error.message || String(error);
       
       if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota")) {
-        alert("O motor de IA está temporariamente ocupado devido ao alto volume de buscas na região. Por favor, aguarde 1 minuto e tente novamente.");
+        alert("O motor de IA está temporariamente ocupado. Prosseguindo com dados do Banco de Dados local...");
+        // Tentamos novamente forçando apenas o Banco de Dados se a IA falhar
+        try {
+           const result = await generateManualValuation(data);
+           setValuationResult(result);
+           setCurrentStep(AppStep.RESULT);
+           return;
+        } catch (innerError) {
+           alert("Dados insuficientes no Banco de Dados para esta região. Cadastre ao menos 1 amostra no Dashboard.");
+        }
       } else if (msg.includes("API_KEY_REQUIRED") || msg.includes("MISSING")) {
-        alert("Configuração Necessária: Ative a IA clicando no botão de ativação ou configure a chave no servidor.");
+        alert("Configuração Necessária: Ative a IA clicando no botão de ativação.");
         setHasApiKey(false);
       } else if (msg.includes("AMOSTRAS_INSUFICIENTES")) {
-        alert("Não encontramos amostras suficientes em portais digitais para esta região no momento. Verifique se os dados do imóvel estão corretos.");
+        alert("Nenhuma amostra encontrada no Supabase ou Portais para esta região. Cadastre uma amostra manual no Dashboard da Equipe.");
       } else {
-        alert(`Não foi possível completar a avaliação: ${msg}`);
+        alert(`Erro ao processar: ${msg}`);
       }
       setCurrentStep(AppStep.FORM);
     }

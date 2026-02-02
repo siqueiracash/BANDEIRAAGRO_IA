@@ -32,7 +32,8 @@ const LogoSVG = `
 `;
 
 const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): ValuationResult => {
-  if (pool.length < 3) throw new Error("AMOSTRAS_INSUFICIENTES");
+  // Relaxamos para 1 amostra mínima para garantir que o laudo seja emitido, mas adicionamos aviso
+  if (pool.length < 1) throw new Error("AMOSTRAS_INSUFICIENTES");
 
   const allProcessed = pool.map(s => {
     const vub = s.price / s.areaTotal;
@@ -65,12 +66,15 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
   let precision = "GRAU I";
   if (cv <= 15) precision = "GRAU III";
   else if (cv <= 30) precision = "GRAU II";
+  if (pool.length < 3) precision = "AMOSTRAGEM REDUZIDA";
 
   const fmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
   const unit = data.type === PropertyType.URBAN ? 'm²' : 'ha';
 
   const reportHtml = `
     <div class="report-wrapper bg-[#f3f4f6] font-sans text-[13px] leading-tight text-gray-800">
+      
+      <!-- PÁGINA 1: CAPA -->
       <div class="report-page px-16 pt-32 pb-16 flex flex-col items-center justify-between">
         <div>${LogoSVG}</div>
         <div class="text-center">
@@ -86,8 +90,17 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         </div>
       </div>
 
+      <!-- PÁGINA 2: RESUMO -->
       <div class="report-page px-16 py-16 flex flex-col">
         <h2 class="text-[26px] font-serif font-bold text-[#15803d] text-center mb-12 uppercase tracking-[0.2em]">RESUMO DA AVALIAÇÃO</h2>
+        
+        ${pool.length < 3 ? `
+          <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-8">
+            <p class="text-yellow-800 font-bold text-[11px] uppercase tracking-wider">Aviso de Precisão:</p>
+            <p class="text-yellow-700 text-[10px]">Amostragem limitada (${pool.length} dados). O valor obtido possui caráter orientativo conforme NBR 14653 para regiões de baixo fluxo imobiliário.</p>
+          </div>
+        ` : ''}
+
         <div class="space-y-8">
           <div>
             <h3 class="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-1">LOCALIZAÇÃO DO IMÓVEL</h3>
@@ -99,7 +112,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
           </div>
           <div>
             <h3 class="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-1">ATIVIDADE PREDOMINANTE</h3>
-            <p class="text-[17px] font-bold text-gray-900 uppercase">RESIDENCIAL / COMERCIAL</p>
+            <p class="text-[17px] font-bold text-gray-900 uppercase">${data.ruralActivity || 'AGROPECUÁRIA'}</p>
           </div>
           <div>
             <h3 class="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-1">ÁREAS</h3>
@@ -119,6 +132,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         </div>
       </div>
 
+      <!-- PÁGINA 3: METODOLOGIA -->
       <div class="report-page px-16 py-16 text-gray-700">
         <h2 class="text-[18px] font-serif font-bold text-gray-900 mb-5 uppercase tracking-wide">METODOLOGIA GERAL DE AVALIAÇÃO</h2>
         <p class="mb-8 text-justify text-[14px] leading-relaxed">
@@ -140,6 +154,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         </div>
       </div>
 
+      <!-- PÁGINA 4: LIQUIDAÇÃO FORÇADA -->
       <div class="report-page px-16 py-16 text-gray-700">
         <h2 class="text-[18px] font-serif font-bold text-gray-900 mb-6 uppercase tracking-wide">VALOR PARA LIQUIDAÇÃO FORÇADA</h2>
         <div class="space-y-5 mb-10 text-[14px]">
@@ -158,6 +173,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         </div>
       </div>
 
+      <!-- PÁGINAS 5-6: ANEXO - FICHAS DE PESQUISA -->
       ${chunkArray(finalPool, 3).map((chunk, pIdx) => `
         <div class="report-page px-16 py-12">
           <h2 class="text-[16px] font-serif font-bold text-gray-900 mb-1 uppercase tracking-wide">ANEXO: FICHAS DE PESQUISA</h2>
@@ -185,6 +201,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         </div>
       `).join('')}
 
+      <!-- PÁGINA 7: MEMÓRIA DE CÁLCULO -->
       <div class="report-page px-16 py-10 flex flex-col">
         <h2 class="text-[18px] font-serif font-bold text-gray-900 mb-1 uppercase tracking-wide">ANEXO: MEMÓRIA DE CÁLCULO</h2>
         <h3 class="text-[22px] font-serif text-gray-300 mb-6 uppercase tracking-[0.15em]">PROCESSAMENTO ESTATÍSTICO</h3>
@@ -254,6 +271,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         <div class="mt-auto pt-6 text-center text-gray-300 text-[9px] font-bold uppercase tracking-[0.4em]">BANDEIRA AGRO - INTELIGÊNCIA EM AVALIAÇÕES</div>
       </div>
 
+      <!-- PÁGINA 8: RESPONSABILIDADE (FINAL) -->
       <div class="report-page px-16 py-16 text-gray-700 flex flex-col no-break-after">
         <h2 class="text-[22px] font-serif font-bold text-gray-900 mb-10 uppercase tracking-[0.2em] text-center">RESPONSABILIDADE E LIMITAÇÕES</h2>
         <div class="space-y-6 text-[13px] text-justify leading-relaxed">
@@ -268,6 +286,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
           <p class="text-gray-400 text-[8px] mt-2 font-mono">${new Date().toLocaleDateString('pt-BR')} | ID-SYSTEM-${Math.random().toString(36).substring(7).toUpperCase()}</p>
         </div>
       </div>
+
     </div>
 
     <style>
@@ -337,18 +356,22 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
 };
 
 export const performValuation = async (data: PropertyData): Promise<ValuationResult> => {
-  // 1. Busca primeiro o que já temos no banco de dados validado (SUPABASE)
+  // 1. Busca primeiro o que já temos no banco de dados validado (SUPABASE) na cidade específica
   let pool = await filterSamples(data.type, data.city, data.state);
   
-  // 2. Lógica Específica Rural: Prioridade total ao Supabase
-  if (data.type === PropertyType.RURAL) {
-    // Se tiver pelo menos 3 no banco, usa apenas o banco para evitar 429 e garantir qualidade agro
-    if (pool.length >= 3) {
-      return calculateAndGenerateReport(data, pool);
-    }
+  // 2. Lógica de Expansão para Rural: Se tiver poucas amostras na cidade, expande para o ESTADO todo
+  if (data.type === PropertyType.RURAL && pool.length < 3) {
+    console.warn("Poucas amostras rurais na cidade. Expandindo busca para o Estado...");
+    const statePool = await filterSamples(data.type, null, data.state);
+    
+    // Une as amostras sem duplicar
+    const existingIds = new Set(pool.map(s => s.id));
+    statePool.forEach(s => {
+      if (!existingIds.has(s.id)) pool.push(s);
+    });
   }
 
-  // 3. Suplemento via IA apenas se necessário (Urbano < 6 ou Rural < 3)
+  // 3. Se ainda tivermos poucas amostras após a expansão no Supabase, tentamos a IA
   if (pool.length < 6) {
     try {
       const aiSamples = await findMarketSamplesIA(data);
@@ -357,7 +380,7 @@ export const performValuation = async (data: PropertyData): Promise<ValuationRes
         const newSamples = aiSamples.filter(s => !s.url || !existingUrls.has(s.url));
         
         pool = [...pool, ...newSamples];
-        // Salva novas amostras para futuras consultas (reduz uso da IA no futuro)
+        // Salva novas amostras para futuras consultas
         newSamples.forEach(s => saveSample(s).catch(() => {}));
       }
     } catch (e) {
@@ -365,6 +388,7 @@ export const performValuation = async (data: PropertyData): Promise<ValuationRes
     }
   }
   
+  // 4. Filtragem Final
   const finalPool = pool.filter((v, i, a) => 
     v.price > 0 && v.areaTotal > 0 && 
     a.findIndex(t => (t.url && t.url === v.url) || t.id === v.id) === i
