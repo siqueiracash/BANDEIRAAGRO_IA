@@ -24,22 +24,25 @@ export default async function handler(request: any, response: any) {
       const state = data.state;
       const typeLabel = data.urbanSubType || data.ruralActivity || "Imóvel";
       
-      const isBroad = searchScope === 'broad';
-
-      const prompt = `Aja como um perito avaliador imobiliário. Você PRECISA encontrar pelo menos 8 anúncios reais e recentes para ${typeLabel} em ${city}/${state}.
-      
-      SITES ALVO: zapimoveis.com.br, vivareal.com.br, imovelweb.com.br, olx.com.br, quintoandar.com.br.
-      
-      ESTRATEGIA DE BUSCA:
-      ${isBroad 
-        ? `FOCO AMPLO: Pesquise em todo o bairro "${neighborhood}" e arredores imediatos. Priorize anúncios que mencionem características similares a: ${data.description}.` 
-        : `FOCO ESPECÍFICO: Priorize a rua "${street}" e o bairro "${neighborhood}". Se não houver resultados na rua, expanda imediatamente para o bairro.`
+      let locationContext = "";
+      if (searchScope === 'specific') {
+        locationContext = `na Rua "${street}" ou no bairro "${neighborhood}" em ${city}/${state}`;
+      } else if (searchScope === 'broad') {
+        locationContext = `no bairro "${neighborhood}" e regiões vizinhas em ${city}/${state}`;
+      } else {
+        locationContext = `em toda a cidade de ${city}/${state} (Busca Ampla)`;
       }
+
+      const prompt = `Aja como um Perito Avaliador Imobiliário sênior.
+      OBJETIVO: Você PRECISA encontrar obrigatoriamente pelo menos 15 anúncios reais de VENDA para ${typeLabel} ${locationContext}.
       
-      REQUISITOS OBRIGATÓRIOS:
-      - O preço deve ser coerente com o mercado (venda, não aluguel).
-      - Extraia a área útil/total corretamente.
-      - Retorne apenas resultados com URLs válidas desses portais.
+      FONTES OBRIGATÓRIAS: zapimoveis.com.br, vivareal.com.br, imovelweb.com.br, olx.com.br, quintoandar.com.br.
+      
+      INSTRUÇÕES TÉCNICAS:
+      1. IGNORE locações. Foque apenas em VENDA.
+      2. Se não encontrar na rua exata, busque no quarteirão, no bairro ou na zona da cidade.
+      3. O laudo da Bandeira Agro exige 5 amostras válidas; por isso, retorne 15 para termos margem de erro.
+      4. Extraia o Preço Total (Price) e a Área (Area) com precisão.
       
       Retorne um ARRAY JSON contendo: title, price (número), area (número), neighborhood, source, url.`;
 

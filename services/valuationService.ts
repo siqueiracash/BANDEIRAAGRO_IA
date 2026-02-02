@@ -100,7 +100,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
   const medianVuh = sortedVuhs[Math.floor(sortedVuhs.length / 2)];
   const finalPool = allProcessed
     .sort((a, b) => Math.abs(a.vuh - medianVuh) - Math.abs(b.vuh - medianVuh))
-    .slice(0, 6);
+    .slice(0, 8); // Aumentado para 8 amostras no laudo final se disponíveis
 
   const vuhValues = finalPool.map(s => s.vuh);
   const avgVuh = vuhValues.reduce((a, b) => a + b, 0) / vuhValues.length;
@@ -239,48 +239,40 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
 };
 
 export const performValuation = async (data: PropertyData): Promise<ValuationResult> => {
-  let pool = await filterSamples(data.type, data.city, data.state);
+  let pool: MarketSample[] = await filterSamples(data.type, data.city, data.state);
   
-  if (data.type === PropertyType.RURAL && pool.length < 3) {
-    const statePool = await filterSamples(data.type, null, data.state);
-    const existingIds = new Set(pool.map(s => s.id));
-    statePool.forEach(s => {
-      if (!existingIds.has(s.id)) pool.push(s);
-    });
-  }
-
-  // ETAPA 1: Busca Específica
-  if (pool.length < 8) {
-    try {
-      const aiSamples = await findMarketSamplesIA(data, 'specific');
-      if (aiSamples.length > 0) {
-        pool = [...pool, ...aiSamples];
+  const cleanAndAdd = (newSamples: MarketSample[]) => {
+    newSamples.forEach(ns => {
+      if (!pool.some(p => (p.url && p.url === ns.url) || p.id === ns.id)) {
+        pool.push(ns);
       }
-    } catch (e) {}
-  }
-  
-  // Limpeza inicial
-  pool = pool.filter((v, i, a) => 
-    v.price > 0 && v.areaTotal > 0 && 
-    a.findIndex(t => (t.url && t.url === v.url) || t.id === v.id) === i
-  );
+    });
+  };
 
-  // ETAPA 2: Busca Ampla (Fallback automático se necessário para Urbano)
+  // ETAPA 1: Busca Específica (Rua/Bairro)
+  try {
+    const s1 = await findMarketSamplesIA(data, 'specific');
+    cleanAndAdd(s1);
+  } catch (e) {}
+
+  // ETAPA 2: Busca Ampla (Se ainda faltar para o mínimo de 5 urbanos)
   if (data.type === PropertyType.URBAN && pool.length < 5) {
     try {
-      console.log("Amostras insuficientes na rua. Iniciando busca ampla no bairro/região...");
-      const broadSamples = await findMarketSamplesIA(data, 'broad');
-      if (broadSamples.length > 0) {
-        pool = [...pool, ...broadSamples];
-      }
+      const s2 = await findMarketSamplesIA(data, 'broad');
+      cleanAndAdd(s2);
+    } catch (e) {}
+  }
+
+  // ETAPA 3: Busca Radical (Cidade Inteira - Fallback final)
+  if (data.type === PropertyType.URBAN && pool.length < 5) {
+    try {
+      const s3 = await findMarketSamplesIA(data, 'city' as any);
+      cleanAndAdd(s3);
     } catch (e) {}
   }
   
-  // Limpeza final de duplicatas após fallback
-  const finalPool = pool.filter((v, i, a) => 
-    v.price > 0 && v.areaTotal > 0 && 
-    a.findIndex(t => (t.url && t.url === v.url) || t.id === v.id) === i
-  );
+  // Limpeza final de dados inconsistentes
+  const finalPool = pool.filter(v => v.price > 1000 && v.areaTotal > 5);
   
   return calculateAndGenerateReport(data, finalPool);
 };

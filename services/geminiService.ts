@@ -39,11 +39,15 @@ const runPreviewAI = async (payload: any) => {
   if (payload.action === 'findSamples') {
     const { data, searchScope } = payload;
     const typeLabel = data.type === PropertyType.URBAN ? data.urbanSubType : data.ruralActivity;
-    const isBroad = searchScope === 'broad';
     
-    const prompt = `Pesquise no Google por anúncios de venda em portais como Zap, VivaReal e Imovelweb para ${typeLabel} em ${data.city}/${data.state}. 
-    ${isBroad ? `FOCO NO BAIRRO E ARREDORES: ${data.neighborhood}` : `FOCO NA RUA E BAIRRO: ${data.address}, ${data.neighborhood}`}
-    Extraia pelo menos 8 resultados reais. Retorne ARRAY JSON com title, price, area, neighborhood, source, url.`;
+    let scopeDesc = "";
+    if (searchScope === 'specific') scopeDesc = `Rua ${data.address}, Bairro ${data.neighborhood}`;
+    else if (searchScope === 'broad') scopeDesc = `Bairro ${data.neighborhood} e arredores`;
+    else scopeDesc = `toda a cidade de ${data.city}`;
+
+    const prompt = `Busque em portais como Zap, VivaReal e Imovelweb por anúncios de VENDA de ${typeLabel} em ${data.city}/${data.state}. 
+    CONTEXTO DE LOCALIZAÇÃO: ${scopeDesc}.
+    Retorne OBRIGATORIAMENTE 15 resultados reais e únicos em formato JSON (ARRAY de objetos com title, price, area, neighborhood, source, url).`;
     
     try {
       const res = await ai.models.generateContent({
@@ -78,7 +82,7 @@ const callAI = async (payload: any) => {
   }
 };
 
-export const findMarketSamplesIA = async (data: PropertyData, searchScope: 'specific' | 'broad' = 'specific'): Promise<MarketSample[]> => {
+export const findMarketSamplesIA = async (data: PropertyData, searchScope: 'specific' | 'broad' | 'city' = 'specific'): Promise<MarketSample[]> => {
   try {
     const results = await callAI({ action: 'findSamples', data, searchScope });
     if (!Array.isArray(results)) return [];
@@ -103,7 +107,7 @@ export const findMarketSamplesIA = async (data: PropertyData, searchScope: 'spec
       bathrooms: s.bathrooms || 0,
       parking: s.parking || 0,
       conservationState: 'Bom'
-    })).filter((s: any) => s.price > 5000 && s.areaTotal > 5); // Filtros básicos de sanidade
+    })).filter((s: any) => s.price > 1000 && s.areaTotal > 1); // Filtro de sanidade relaxado para permitir mais amostras
   } catch (error: any) {
     console.error("findMarketSamplesIA falhou:", error);
     return []; 
