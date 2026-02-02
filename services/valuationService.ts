@@ -108,11 +108,15 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
           </div>
           <div>
             <h3 class="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-1">TIPO DE IMÓVEL</h3>
-            <p class="text-[17px] font-bold text-gray-900 uppercase">${data.type} (${data.urbanSubType || data.ruralActivity})</p>
+            <p class="text-[17px] font-bold text-gray-900 uppercase">
+              ${data.type === PropertyType.URBAN ? `${data.type} (${data.urbanSubType || 'GERAL'})` : data.type}
+            </p>
           </div>
           <div>
             <h3 class="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-1">ATIVIDADE PREDOMINANTE</h3>
-            <p class="text-[17px] font-bold text-gray-900 uppercase">${data.ruralActivity || 'AGROPECUÁRIA'}</p>
+            <p class="text-[17px] font-bold text-gray-900 uppercase">
+              ${data.type === PropertyType.RURAL ? (data.ruralActivity || 'AGROPECUÁRIA') : 'RESIDENCIAL / COMERCIAL'}
+            </p>
           </div>
           <div>
             <h3 class="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-1">ÁREAS</h3>
