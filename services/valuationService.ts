@@ -32,7 +32,6 @@ const LogoSVG = `
 `;
 
 const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): ValuationResult => {
-  // Garantia mínima de 3 amostras conforme NBR 14653 para grau I
   if (pool.length < 3) throw new Error("AMOSTRAS_INSUFICIENTES");
 
   const allProcessed = pool.map(s => {
@@ -72,8 +71,6 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
 
   const reportHtml = `
     <div class="report-wrapper bg-[#f3f4f6] font-sans text-[13px] leading-tight text-gray-800">
-      
-      <!-- PÁGINA 1: CAPA -->
       <div class="report-page px-16 pt-32 pb-16 flex flex-col items-center justify-between">
         <div>${LogoSVG}</div>
         <div class="text-center">
@@ -89,7 +86,6 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         </div>
       </div>
 
-      <!-- PÁGINA 2: RESUMO -->
       <div class="report-page px-16 py-16 flex flex-col">
         <h2 class="text-[26px] font-serif font-bold text-[#15803d] text-center mb-12 uppercase tracking-[0.2em]">RESUMO DA AVALIAÇÃO</h2>
         <div class="space-y-8">
@@ -123,7 +119,6 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         </div>
       </div>
 
-      <!-- PÁGINA 3: METODOLOGIA -->
       <div class="report-page px-16 py-16 text-gray-700">
         <h2 class="text-[18px] font-serif font-bold text-gray-900 mb-5 uppercase tracking-wide">METODOLOGIA GERAL DE AVALIAÇÃO</h2>
         <p class="mb-8 text-justify text-[14px] leading-relaxed">
@@ -145,7 +140,6 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         </div>
       </div>
 
-      <!-- PÁGINA 4: LIQUIDAÇÃO FORÇADA -->
       <div class="report-page px-16 py-16 text-gray-700">
         <h2 class="text-[18px] font-serif font-bold text-gray-900 mb-6 uppercase tracking-wide">VALOR PARA LIQUIDAÇÃO FORÇADA</h2>
         <div class="space-y-5 mb-10 text-[14px]">
@@ -164,7 +158,6 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         </div>
       </div>
 
-      <!-- PÁGINAS 5-6: ANEXO - FICHAS DE PESQUISA -->
       ${chunkArray(finalPool, 3).map((chunk, pIdx) => `
         <div class="report-page px-16 py-12">
           <h2 class="text-[16px] font-serif font-bold text-gray-900 mb-1 uppercase tracking-wide">ANEXO: FICHAS DE PESQUISA</h2>
@@ -183,7 +176,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
                   <div class="p-2 border-r border-b border-gray-50"><p class="text-[7px] font-bold text-gray-400 uppercase mb-0.5">ÁREA TOTAL</p><p class="font-bold text-[12px]">${s.areaTotal} ${unit}</p></div>
                   <div class="p-2 border-b border-gray-50"><p class="text-[7px] font-bold text-gray-400 uppercase mb-0.5">VALOR TOTAL</p><p class="font-bold text-[12px]">${fmt.format(s.price)}</p></div>
                   <div class="p-2 border-r border-gray-50"><p class="text-[7px] font-bold text-gray-400 uppercase mb-0.5">DESCRIÇÃO</p><p class="text-gray-500 line-clamp-1 italic text-[8px]">${s.description || 'Imóvel disponível.'}</p></div>
-                  <div class="p-2"><p class="text-[7px] font-bold text-gray-400 uppercase mb-0.5">CARACTERÍSTICAS</p><p class="font-bold uppercase text-[9px]">Q/B/V: ${s.bedrooms}/${s.bathrooms}/${s.parking}</p></div>
+                  <div class="p-2"><p class="text-[7px] font-bold text-gray-400 uppercase mb-0.5">CARACTERÍSTICAS</p><p class="font-bold uppercase text-[9px]">Q/B/V: ${s.bedrooms || 0}/${s.bathrooms || 0}/${s.parking || 0}</p></div>
                 </div>
               </div>
             `).join('')}
@@ -192,7 +185,6 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         </div>
       `).join('')}
 
-      <!-- PÁGINA 7: MEMÓRIA DE CÁLCULO -->
       <div class="report-page px-16 py-10 flex flex-col">
         <h2 class="text-[18px] font-serif font-bold text-gray-900 mb-1 uppercase tracking-wide">ANEXO: MEMÓRIA DE CÁLCULO</h2>
         <h3 class="text-[22px] font-serif text-gray-300 mb-6 uppercase tracking-[0.15em]">PROCESSAMENTO ESTATÍSTICO</h3>
@@ -262,7 +254,6 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         <div class="mt-auto pt-6 text-center text-gray-300 text-[9px] font-bold uppercase tracking-[0.4em]">BANDEIRA AGRO - INTELIGÊNCIA EM AVALIAÇÕES</div>
       </div>
 
-      <!-- PÁGINA 8: RESPONSABILIDADE (FINAL) -->
       <div class="report-page px-16 py-16 text-gray-700 flex flex-col no-break-after">
         <h2 class="text-[22px] font-serif font-bold text-gray-900 mb-10 uppercase tracking-[0.2em] text-center">RESPONSABILIDADE E LIMITAÇÕES</h2>
         <div class="space-y-6 text-[13px] text-justify leading-relaxed">
@@ -277,7 +268,6 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
           <p class="text-gray-400 text-[8px] mt-2 font-mono">${new Date().toLocaleDateString('pt-BR')} | ID-SYSTEM-${Math.random().toString(36).substring(7).toUpperCase()}</p>
         </div>
       </div>
-
     </div>
 
     <style>
@@ -347,35 +337,39 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
 };
 
 export const performValuation = async (data: PropertyData): Promise<ValuationResult> => {
-  // 1. Busca primeiro o que já temos no banco de dados validado pela Equipe
+  // 1. Busca primeiro o que já temos no banco de dados validado (SUPABASE)
   let pool = await filterSamples(data.type, data.city, data.state);
   
-  // 2. Se tivermos poucas amostras (menos de 6), tentamos a IA como suplemento
+  // 2. Lógica Específica Rural: Prioridade total ao Supabase
+  if (data.type === PropertyType.RURAL) {
+    // Se tiver pelo menos 3 no banco, usa apenas o banco para evitar 429 e garantir qualidade agro
+    if (pool.length >= 3) {
+      return calculateAndGenerateReport(data, pool);
+    }
+  }
+
+  // 3. Suplemento via IA apenas se necessário (Urbano < 6 ou Rural < 3)
   if (pool.length < 6) {
     try {
       const aiSamples = await findMarketSamplesIA(data);
       if (aiSamples.length > 0) {
-        // Filtra duplicados pela URL
         const existingUrls = new Set(pool.filter(s => !!s.url).map(s => s.url));
         const newSamples = aiSamples.filter(s => !s.url || !existingUrls.has(s.url));
         
         pool = [...pool, ...newSamples];
-        // Salva silenciosamente as novas amostras encontradas
+        // Salva novas amostras para futuras consultas (reduz uso da IA no futuro)
         newSamples.forEach(s => saveSample(s).catch(() => {}));
       }
     } catch (e) {
-      console.warn("Erro ao buscar amostras suplementares via IA:", e);
-      // Prossegue mesmo com erro, o pool original (local) será usado
+      console.warn("IA de busca atingiu limite. Prosseguindo com dados locais.");
     }
   }
   
-  // 3. Filtra amostras inválidas e remove duplicados finais
   const finalPool = pool.filter((v, i, a) => 
     v.price > 0 && v.areaTotal > 0 && 
     a.findIndex(t => (t.url && t.url === v.url) || t.id === v.id) === i
   );
   
-  // 4. Se chegarmos aqui com menos de 3, aí sim precisamos informar o usuário
   return calculateAndGenerateReport(data, finalPool);
 };
 
