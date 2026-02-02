@@ -20,12 +20,19 @@ export default async function handler(request: any, response: any) {
     if (action === 'findSamples') {
       const city = data.city;
       const state = data.state;
-      const typeLabel = data.urbanSubType || data.ruralActivity || "Imóvel";
-      const neighborhood = data.neighborhood || "";
+      const isRural = data.type === 'RURAL';
+      const typeLabel = isRural ? (data.ruralActivity || "Fazenda/Sítio") : (data.urbanSubType || "Imóvel Urbano");
+      const unit = isRural ? "Hectares (ha)" : "m2";
       
-      const prompt = `Aja como um perito avaliador. Localize anúncios de VENDA de ${typeLabel} em ${city}/${state}, preferencialmente no bairro ${neighborhood}. 
-      Extraia: Título, Preço (Price), Área (Area), Bairro e URL.
-      Retorne APENAS um ARRAY JSON de objetos.`;
+      const prompt = `Aja como um Perito Avaliador Imobiliário da BANDEIRA AGRO. 
+      Busque exclusivamente anúncios de VENDA ativos para: ${typeLabel} em ${city}/${state}.
+      
+      REGRAS:
+      1. Extraia o valor total e a área em ${unit}.
+      2. Foque em sites como Zap Imóveis, VivaReal, Imovelweb e sites especializados em agronegócio.
+      3. Se for rural, ignore anúncios de locação de pasto ou arrendamento. Apenas VENDA de terra nua ou porteira fechada.
+      
+      Retorne um ARRAY JSON de objetos com: title, price, area, neighborhood, source, url.`;
 
       const genResult = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
@@ -55,7 +62,7 @@ export default async function handler(request: any, response: any) {
     }
 
     if (action === 'extractUrl') {
-      const prompt = `Extraia os dados de venda (Preço, Área, Bairro) do anúncio: ${url}. Retorne JSON.`;
+      const prompt = `Analise este link de anúncio e extraia Preço, Área e Localização. Retorne em JSON: ${url}`;
       const genResult = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
@@ -70,6 +77,6 @@ export default async function handler(request: any, response: any) {
     return response.status(400).json({ error: "INVALID_ACTION" });
 
   } catch (error: any) {
-    return response.status(500).json({ error: "Erro interno no servidor de avaliação." });
+    return response.status(500).json({ error: "Erro na conexão com o motor de busca Bandeira Agro." });
   }
 }
