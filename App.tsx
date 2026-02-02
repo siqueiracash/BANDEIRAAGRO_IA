@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Layout from './components/Layout';
 import StepSelection from './components/StepSelection';
 import StepForm from './components/StepForm';
@@ -12,7 +12,7 @@ import { AppStep, PropertyData, PropertyType, ValuationResult } from './types';
 import { generateManualValuation, generateUrbanAutomatedValuation } from './services/valuationService';
 import { INITIAL_PROPERTY_DATA } from './constants';
 
-const App: React.FC = () => {
+const App = () => {
   const [currentStep, setCurrentStep] = useState<AppStep>(AppStep.SELECTION);
   const [propertyData, setPropertyData] = useState<PropertyData>(INITIAL_PROPERTY_DATA);
   const [valuationResult, setValuationResult] = useState<ValuationResult | null>(null);
@@ -25,7 +25,6 @@ const App: React.FC = () => {
         const selected = await (window as any).aistudio.hasSelectedApiKey();
         setHasApiKey(selected);
       } else {
-        // Em produção, se a variável de ambiente existir, liberamos
         setHasApiKey(true); 
       }
     };
@@ -50,11 +49,13 @@ const App: React.FC = () => {
       console.error("Erro na Requisição:", error);
       const msg = error.message || String(error);
       
-      if (msg.includes("API_KEY_REQUIRED") || msg.includes("MISSING")) {
+      if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota")) {
+        alert("O motor de IA está temporariamente ocupado devido ao alto volume de buscas na região. Por favor, aguarde 1 minuto e tente novamente.");
+      } else if (msg.includes("API_KEY_REQUIRED") || msg.includes("MISSING")) {
         alert("Configuração Necessária: Ative a IA clicando no botão de ativação ou configure a chave no servidor.");
         setHasApiKey(false);
       } else if (msg.includes("AMOSTRAS_INSUFICIENTES")) {
-        alert("Não encontramos amostras suficientes em portais digitais para esta região no momento. Tente novamente em instantes.");
+        alert("Não encontramos amostras suficientes em portais digitais para esta região no momento. Verifique se os dados do imóvel estão corretos.");
       } else {
         alert(`Não foi possível completar a avaliação: ${msg}`);
       }

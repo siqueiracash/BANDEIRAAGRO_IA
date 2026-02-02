@@ -5,6 +5,37 @@ import { PropertyData, MarketSample, PropertyType } from "../types";
 const isPreview = () => !!(window as any).aistudio;
 
 /**
+ * Função de auxílio para realizar fetch com retentativas (Backoff Exponencial)
+ */
+async function fetchWithRetry(url: string, options: any, maxRetries = 3) {
+  let lastError: any;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const response = await fetch(url, options);
+      if (response.ok) return response;
+      
+      const errorData = await response.json().catch(() => ({}));
+      lastError = new Error(errorData.error || `Erro ${response.status}`);
+      
+      // Se for erro de cota (429) ou erro de servidor (5xx), tenta novamente
+      if (response.status !== 429 && (response.status < 500 || response.status > 599)) {
+        throw lastError;
+      }
+      
+      const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
+      console.warn(`Tentativa ${i + 1} falhou (Cota/Servidor). Retentando em ${Math.round(delay)}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    } catch (err) {
+      lastError = err;
+      if (i === maxRetries - 1) throw lastError;
+      // Pequena pausa antes de erro de rede
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+  throw lastError;
+}
+
+/**
  * Motor de IA local para uso no Preview do AI Studio
  */
 const runPreviewAI = async (payload: any) => {
@@ -16,10 +47,7 @@ const runPreviewAI = async (payload: any) => {
     const { data } = payload;
     const typeLabel = data.type === PropertyType.URBAN ? data.urbanSubType : data.ruralActivity;
     
-    // Prompt ultra específico para evitar mistura de tipos (ex: apto vs comercial)
-    const prompt = `Busque amostras reais e atuais de venda exclusivas para o tipo "${typeLabel}" na cidade de ${data.city}, ${data.state}. 
-    É obrigatório que sejam apenas imóveis do tipo ${typeLabel}. 
-    Retorne um array JSON com objetos contendo: title, price, area, neighborhood, source, url, bedrooms, bathrooms, parking.`;
+    const prompt = `Busque amostras reais e atuais de venda exclusivas para o tipo "${typeLabel}" na cidade de ${data.city}, ${data.state}. Retorne apenas JSON.`;
     
     const res = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
@@ -35,31 +63,21 @@ const runPreviewAI = async (payload: any) => {
 };
 
 /**
- * Função centralizada para chamadas de IA
+ * Função centralizada para chamadas de IA com tratamento de erros robusto
  */
 const callAI = async (payload: any) => {
   if (isPreview()) return await runPreviewAI(payload);
 
   try {
-    const response = await fetch('/api/valuation', {
+    const response = await fetchWithRetry('/api/valuation', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
 
-    const contentType = response.headers.get("content-type");
-    if (!contentType || !contentType.includes("application/json")) {
-      throw new Error("Resposta inválida do servidor.");
-    }
-
-    if (!response.ok) {
-      const errData = await response.json();
-      throw new Error(errData.error || "Erro no servidor de IA.");
-    }
-
     return await response.json();
   } catch (error: any) {
-    console.error("Falha na comunicação com a IA:", error);
+    console.error("Falha na comunicação com a IA após retentativas:", error);
     throw error;
   }
 };
