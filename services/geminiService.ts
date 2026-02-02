@@ -4,32 +4,24 @@ import { PropertyData, MarketSample, PropertyType } from "../types";
 
 const isPreview = () => !!(window as any).aistudio;
 
-/**
- * Realiza chamadas com Backoff Exponencial melhorado para erros de cota (429)
- */
 async function fetchWithRetry(url: string, options: any, maxRetries = 3) {
   let lastError: any;
   for (let i = 0; i < maxRetries; i++) {
     try {
       const response = await fetch(url, options);
       if (response.ok) return response;
-      
       const errorData = await response.json().catch(() => ({}));
       lastError = new Error(errorData.error || `Erro ${response.status}`);
-      
       if (response.status === 429) {
         const delay = Math.pow(3, i) * 2000 + Math.random() * 1000;
-        console.warn(`Limite de cota atingido. Tentativa ${i + 1}/${maxRetries}. Retentando em ${Math.round(delay)}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }
-      
       if (response.status >= 500) {
         const delay = Math.pow(2, i) * 1000;
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }
-
       throw lastError;
     } catch (err) {
       lastError = err;
@@ -45,17 +37,13 @@ const runPreviewAI = async (payload: any) => {
   const ai = new GoogleGenAI({ apiKey });
   
   if (payload.action === 'findSamples') {
-    const { data } = payload;
+    const { data, searchScope } = payload;
     const typeLabel = data.type === PropertyType.URBAN ? data.urbanSubType : data.ruralActivity;
-    const street = data.address || '';
-    const neighborhood = data.neighborhood || 'Centro';
+    const isBroad = searchScope === 'broad';
     
-    const prompt = `Busque pelo menos 6 anúncios reais de venda para ${typeLabel} em ${data.city}/${data.state}. 
-    Siga a prioridade: 
-    1. Mesma rua: ${street}. 
-    2. Mesmo bairro: ${neighborhood}. 
-    3. Bairros vizinhos. 
-    Retorne ARRAY JSON com title, price, area, neighborhood, source, url.`;
+    const prompt = `Pesquise no Google por anúncios de venda em portais como Zap, VivaReal e Imovelweb para ${typeLabel} em ${data.city}/${data.state}. 
+    ${isBroad ? `FOCO NO BAIRRO E ARREDORES: ${data.neighborhood}` : `FOCO NA RUA E BAIRRO: ${data.address}, ${data.neighborhood}`}
+    Extraia pelo menos 8 resultados reais. Retorne ARRAY JSON com title, price, area, neighborhood, source, url.`;
     
     try {
       const res = await ai.models.generateContent({
@@ -77,7 +65,6 @@ const runPreviewAI = async (payload: any) => {
 
 const callAI = async (payload: any) => {
   if (isPreview()) return await runPreviewAI(payload);
-
   try {
     const response = await fetchWithRetry('/api/valuation', {
       method: 'POST',
@@ -86,21 +73,18 @@ const callAI = async (payload: any) => {
     });
     return await response.json();
   } catch (error: any) {
-    if (payload.action === 'findSamples') {
-      console.warn("IA de busca indisponível no momento. Usando apenas base de dados local.");
-      return []; 
-    }
+    if (payload.action === 'findSamples') return []; 
     throw error;
   }
 };
 
-export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = false): Promise<MarketSample[]> => {
+export const findMarketSamplesIA = async (data: PropertyData, searchScope: 'specific' | 'broad' = 'specific'): Promise<MarketSample[]> => {
   try {
-    const results = await callAI({ action: 'findSamples', data, isDeepSearch });
+    const results = await callAI({ action: 'findSamples', data, searchScope });
     if (!Array.isArray(results)) return [];
 
     return results.map((s: any, index: number) => ({
-      id: `ia-${Date.now()}-${index}`,
+      id: `ia-${Date.now()}-${index}-${searchScope}`,
       type: data.type,
       title: s.title || `${data.urbanSubType || data.ruralActivity} em ${s.neighborhood || data.city}`,
       address: s.neighborhood ? `${s.neighborhood}, ${data.city}` : data.city,
@@ -119,7 +103,7 @@ export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = fal
       bathrooms: s.bathrooms || 0,
       parking: s.parking || 0,
       conservationState: 'Bom'
-    })).filter((s: any) => s.price > 1000 && s.areaTotal > 0);
+    })).filter((s: any) => s.price > 5000 && s.areaTotal > 5); // Filtros básicos de sanidade
   } catch (error: any) {
     console.error("findMarketSamplesIA falhou:", error);
     return []; 
