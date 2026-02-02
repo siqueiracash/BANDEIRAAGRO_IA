@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { PropertyData, PropertyType } from '../types';
 import { BRAZIL_STATES } from '../constants';
@@ -16,6 +17,7 @@ const StepForm: React.FC<StepFormProps> = ({ propertyType, initialData, onSubmit
     state: initialData?.state || '',
     description: initialData?.description || '',
     address: initialData?.address || '',
+    registrationNumber: initialData?.registrationNumber || '',
     areaTotal: initialData?.areaTotal || 0,
     areaBuilt: initialData?.areaBuilt || 0,
     
@@ -116,17 +118,32 @@ const StepForm: React.FC<StepFormProps> = ({ propertyType, initialData, onSubmit
           </div>
         )}
 
-        <div className="md:col-span-2">
-           <label className="block text-sm font-medium text-gray-700 mb-1">Endereço / Localização</label>
-           <input
-            type="text"
-            name="address"
-            required={!isRural}
-            value={formData.address}
-            className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-agro-500"
-            placeholder={isRural ? "Ex: Estrada Municipal km 5" : "Ex: Rua das Flores, 123"}
-            onChange={handleChange}
-          />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="md:col-span-2">
+             <label className="block text-sm font-medium text-gray-700 mb-1">Endereço / Localização</label>
+             <input
+              type="text"
+              name="address"
+              required={!isRural}
+              value={formData.address}
+              className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-agro-500"
+              placeholder={isRural ? "Ex: Estrada Municipal km 5" : "Ex: Rua das Flores, 123"}
+              onChange={handleChange}
+            />
+          </div>
+          {isRural && (
+            <div className="md:col-span-1">
+               <label className="block text-sm font-medium text-gray-700 mb-1">n° da Matrícula</label>
+               <input
+                type="text"
+                name="registrationNumber"
+                value={formData.registrationNumber}
+                className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-agro-500"
+                placeholder="Ex: 12.345"
+                onChange={handleChange}
+              />
+            </div>
+          )}
         </div>
 
         {/* --- CAMPOS RURAIS DETALHADOS (Conforme Tabela) --- */}

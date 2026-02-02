@@ -110,6 +110,12 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
             <h3 class="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-1">LOCALIZAÇÃO DO IMÓVEL</h3>
             <p class="text-[17px] font-bold text-gray-900">${locationDisplay}</p>
           </div>
+          ${data.registrationNumber ? `
+            <div>
+              <h3 class="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-1">Nº DA MATRÍCULA</h3>
+              <p class="text-[17px] font-bold text-gray-900">${data.registrationNumber}</p>
+            </div>
+          ` : ''}
           <div>
             <h3 class="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-1">TIPO DE IMÓVEL</h3>
             <p class="text-[17px] font-bold text-gray-900 uppercase">

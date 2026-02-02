@@ -9,6 +9,7 @@ export interface PropertyData {
   city: string;
   state: string;
   address?: string;
+  registrationNumber?: string;
   areaTotal: number;
   areaBuilt?: number;
   description: string;
@@ -43,6 +44,7 @@ export interface MarketSample {
   type: PropertyType;
   title: string;
   address: string;
+  registrationNumber?: string;
   city: string;
   state: string;
   neighborhood?: string;

@@ -49,6 +49,7 @@ const preparePayload = (sample: Partial<MarketSample>, pricePerUnit: number) => 
     source: sample.source || 'Manual',
     title: sample.title || '',
     address: sample.address || null,
+    registrationNumber: sample.registrationNumber || null,
     neighborhood: sample.neighborhood || null,
     areaBuilt: sample.areaBuilt || null,
     description: sample.description || null,
