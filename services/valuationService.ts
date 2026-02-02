@@ -32,6 +32,7 @@ const LogoSVG = `
 `;
 
 const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): ValuationResult => {
+  // Garantia mínima de 3 amostras conforme NBR 14653 para grau I
   if (pool.length < 3) throw new Error("AMOSTRAS_INSUFICIENTES");
 
   const allProcessed = pool.map(s => {
@@ -323,7 +324,6 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         }
       }
 
-      /* Fix para Mobile: Garante que o container não encolha o A4 */
       @media screen and (max-width: 210mm) {
         .report-wrapper {
           transform-origin: top left;
@@ -347,20 +347,36 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
 };
 
 export const performValuation = async (data: PropertyData): Promise<ValuationResult> => {
+  // 1. Busca primeiro o que já temos no banco de dados validado pela Equipe
   let pool = await filterSamples(data.type, data.city, data.state);
   
+  // 2. Se tivermos poucas amostras (menos de 6), tentamos a IA como suplemento
   if (pool.length < 6) {
-    const aiSamples = await findMarketSamplesIA(data);
-    pool = [...pool, ...aiSamples];
-    aiSamples.forEach(s => saveSample(s).catch(() => {}));
+    try {
+      const aiSamples = await findMarketSamplesIA(data);
+      if (aiSamples.length > 0) {
+        // Filtra duplicados pela URL
+        const existingUrls = new Set(pool.filter(s => !!s.url).map(s => s.url));
+        const newSamples = aiSamples.filter(s => !s.url || !existingUrls.has(s.url));
+        
+        pool = [...pool, ...newSamples];
+        // Salva silenciosamente as novas amostras encontradas
+        newSamples.forEach(s => saveSample(s).catch(() => {}));
+      }
+    } catch (e) {
+      console.warn("Erro ao buscar amostras suplementares via IA:", e);
+      // Prossegue mesmo com erro, o pool original (local) será usado
+    }
   }
   
-  const uniquePool = pool.filter((v, i, a) => 
+  // 3. Filtra amostras inválidas e remove duplicados finais
+  const finalPool = pool.filter((v, i, a) => 
     v.price > 0 && v.areaTotal > 0 && 
-    a.findIndex(t => t.url === v.url || t.id === v.id) === i
+    a.findIndex(t => (t.url && t.url === v.url) || t.id === v.id) === i
   );
   
-  return calculateAndGenerateReport(data, uniquePool);
+  // 4. Se chegarmos aqui com menos de 3, aí sim precisamos informar o usuário
+  return calculateAndGenerateReport(data, finalPool);
 };
 
 export const generateManualValuation = performValuation;

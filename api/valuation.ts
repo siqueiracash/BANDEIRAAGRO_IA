@@ -2,32 +2,27 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
 export default async function handler(request: any, response: any) {
-  response.setHeader('Access-Control-Allow-Credentials', 'true');
   response.setHeader('Access-Control-Allow-Origin', '*');
-  response.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  response.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
+  response.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
+  response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (request.method === 'OPTIONS') return response.status(200).end();
   if (request.method !== 'POST') return response.status(405).json({ error: 'Method Not Allowed' });
 
   try {
-    const { action, data, isDeepSearch, url, type } = request.body;
+    const { action, data, url, type } = request.body;
     const apiKey = process.env.API_KEY;
 
-    if (!apiKey) return response.status(500).json({ error: "API_KEY_MISSING_ON_SERVER" });
+    if (!apiKey) return response.status(500).json({ error: "API_KEY_MISSING" });
 
     const ai = new GoogleGenAI({ apiKey });
 
     if (action === 'findSamples') {
-      const location = isDeepSearch 
-        ? `${data.city}/${data.state} (arredores)`
-        : `${data.neighborhood || 'Centro'}, ${data.city}/${data.state}`;
-
-      const prompt = `Encontre anúncios reais de venda para ${data.urbanSubType || data.ruralActivity} em ${location}. 
-      Retorne JSON com: title, price, area, neighborhood, source, url, bedrooms, bathrooms, parking.`;
+      const location = `${data.neighborhood || 'Centro'}, ${data.city}/${data.state}`;
+      const typeLabel = data.urbanSubType || data.ruralActivity || "Imóvel";
+      
+      const prompt = `Busque 6 anúncios reais de venda para ${typeLabel} em ${location}. 
+      Retorne ARRAY JSON: title, price, area, neighborhood, source, url.`;
 
       const genResult = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
@@ -45,10 +40,7 @@ export default async function handler(request: any, response: any) {
                 area: { type: Type.NUMBER },
                 neighborhood: { type: Type.STRING },
                 source: { type: Type.STRING },
-                url: { type: Type.STRING },
-                bedrooms: { type: Type.NUMBER },
-                bathrooms: { type: Type.NUMBER },
-                parking: { type: Type.NUMBER }
+                url: { type: Type.STRING }
               },
               required: ["price", "area", "url"]
             }
@@ -60,7 +52,7 @@ export default async function handler(request: any, response: any) {
     }
 
     if (action === 'extractUrl') {
-      const prompt = `Analise: ${url}. Extraia preço, área e localização para ${type}. Retorne JSON.`;
+      const prompt = `Analise anúncio: ${url}. Extraia preço, área e local para ${type}. Retorne JSON.`;
       const genResult = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
@@ -75,9 +67,7 @@ export default async function handler(request: any, response: any) {
     return response.status(400).json({ error: "INVALID_ACTION" });
 
   } catch (error: any) {
-    console.error("Erro na Função Serverless:", error);
-    // Repassa o status de erro da API do Google se disponível
     const statusCode = error.status || 500;
-    return response.status(statusCode).json({ error: error.message || "Internal Server Error" });
+    return response.status(statusCode).json({ error: error.message || "Internal Error" });
   }
 }

@@ -5,7 +5,7 @@ import { PropertyData, MarketSample, PropertyType } from "../types";
 const isPreview = () => !!(window as any).aistudio;
 
 /**
- * Função de auxílio para realizar fetch com retentativas (Backoff Exponencial)
+ * Realiza chamadas com Backoff Exponencial melhorado para erros de cota (429)
  */
 async function fetchWithRetry(url: string, options: any, maxRetries = 3) {
   let lastError: any;
@@ -17,27 +17,30 @@ async function fetchWithRetry(url: string, options: any, maxRetries = 3) {
       const errorData = await response.json().catch(() => ({}));
       lastError = new Error(errorData.error || `Erro ${response.status}`);
       
-      // Se for erro de cota (429) ou erro de servidor (5xx), tenta novamente
-      if (response.status !== 429 && (response.status < 500 || response.status > 599)) {
-        throw lastError;
+      // Se for erro de cota (429), aguarda um tempo maior e tenta novamente
+      if (response.status === 429) {
+        const delay = Math.pow(3, i) * 2000 + Math.random() * 1000;
+        console.warn(`Limite de cota atingido. Tentativa ${i + 1}/${maxRetries}. Retentando em ${Math.round(delay)}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
       }
       
-      const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
-      console.warn(`Tentativa ${i + 1} falhou (Cota/Servidor). Retentando em ${Math.round(delay)}ms...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      // Erros de servidor (5xx)
+      if (response.status >= 500) {
+        const delay = Math.pow(2, i) * 1000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+
+      throw lastError;
     } catch (err) {
       lastError = err;
       if (i === maxRetries - 1) throw lastError;
-      // Pequena pausa antes de erro de rede
-      await new Promise(resolve => setTimeout(resolve, 1000));
     }
   }
   throw lastError;
 }
 
-/**
- * Motor de IA local para uso no Preview do AI Studio
- */
 const runPreviewAI = async (payload: any) => {
   const apiKey = process.env.API_KEY;
   if (!apiKey) throw new Error("API_KEY_REQUIRED");
@@ -46,25 +49,26 @@ const runPreviewAI = async (payload: any) => {
   if (payload.action === 'findSamples') {
     const { data } = payload;
     const typeLabel = data.type === PropertyType.URBAN ? data.urbanSubType : data.ruralActivity;
+    const prompt = `Busque anúncios de venda para ${typeLabel} em ${data.neighborhood || ''} ${data.city}, ${data.state}. Retorne JSON.`;
     
-    const prompt = `Busque amostras reais e atuais de venda exclusivas para o tipo "${typeLabel}" na cidade de ${data.city}, ${data.state}. Retorne apenas JSON.`;
-    
-    const res = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
-      config: { 
-        tools: [{ googleSearch: {} }], 
-        responseMimeType: "application/json" 
-      }
-    });
-    return JSON.parse(res.text || "[]");
+    try {
+      const res = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: prompt,
+        config: { 
+          tools: [{ googleSearch: {} }], 
+          responseMimeType: "application/json" 
+        }
+      });
+      return JSON.parse(res.text || "[]");
+    } catch (e) {
+      console.error("Erro na busca de amostras (Preview Mode):", e);
+      return []; // Fallback para não travar o laudo
+    }
   }
   return {};
 };
 
-/**
- * Função centralizada para chamadas de IA com tratamento de erros robusto
- */
 const callAI = async (payload: any) => {
   if (isPreview()) return await runPreviewAI(payload);
 
@@ -74,10 +78,13 @@ const callAI = async (payload: any) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-
     return await response.json();
   } catch (error: any) {
-    console.error("Falha na comunicação com a IA após retentativas:", error);
+    // Se falhar após todas as retentativas, não joga erro se for busca de amostras
+    if (payload.action === 'findSamples') {
+      console.warn("IA de busca indisponível no momento. Usando apenas base de dados local.");
+      return []; 
+    }
     throw error;
   }
 };
@@ -99,7 +106,7 @@ export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = fal
       areaTotal: Number(s.area),
       pricePerUnit: Number(s.price) / Number(s.area),
       date: new Date().toISOString(),
-      source: s.source || 'Portal Imobiliário',
+      source: s.source || 'Busca IA',
       url: s.url,
       urbanSubType: data.urbanSubType,
       ruralActivity: data.ruralActivity,
@@ -107,9 +114,10 @@ export const findMarketSamplesIA = async (data: PropertyData, isDeepSearch = fal
       bathrooms: s.bathrooms || 0,
       parking: s.parking || 0,
       conservationState: 'Bom'
-    })).filter((s: any) => s.price > 10000 && s.areaTotal > 0);
+    })).filter((s: any) => s.price > 1000 && s.areaTotal > 0);
   } catch (error: any) {
-    throw error;
+    console.error("findMarketSamplesIA falhou:", error);
+    return []; // Retorna vazio para o valuationService usar o que tem no DB
   }
 };
 
