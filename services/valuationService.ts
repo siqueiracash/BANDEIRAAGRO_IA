@@ -70,7 +70,6 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
   const isRural = data.type === PropertyType.RURAL;
 
   // PROCESSAMENTO DAS AMOSTRAS
-  // Use any[] to allow dynamic properties like fOferta, fAtiv, etc.
   const allProcessed: any[] = pool.map(s => {
     const vub = s.price / s.areaTotal;
     const fOferta = OFFER_FACTOR;
@@ -88,8 +87,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
       factors.fAces = fAcesAval / (getRuralFactor('access', s.access) || 1.0);
       factors.fCap = fCapAval / (getRuralFactor('capability', s.landCapability) || 1.0);
     } else {
-      // Cálculo Urbano (Simplificado para o teste)
-      // Se o bairro da amostra for igual ao do avaliando, fLoc = 1.0, senão 0.9 (exemplo)
+      // Cálculo Urbano
       factors.fLoc = s.neighborhood === data.neighborhood ? 1.00 : 0.90;
       factors.fConserv = data.conservationState === s.conservationState ? 1.00 : 0.95;
     }
@@ -140,7 +138,7 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
         <div class="w-full">
           <table class="w-full text-left uppercase text-[10px] font-bold tracking-[0.05em]">
             <tr class="border-t border-gray-100"><td class="py-4 text-gray-400 w-1/3">SOLICITANTE</td><td class="text-gray-900">BANDEIRA AGRO</td></tr>
-            <tr class="border-t border-gray-100"><td class="py-4 text-gray-400">OBJETIVO DA AVALIAÇÃO</td><td class="text-gray-900">VALOR DE MERCADO</td></tr>
+            <tr class="border-t border-gray-100"><td class="py-4 text-gray-400">OBJETIVO DA AVALIAÇÃO</td><td class="text-gray-900 font-bold">VALOR DE MERCADO E LIQUIDAÇÃO FORÇADA</td></tr>
             <tr class="border-t border-b border-gray-100"><td class="py-4 text-gray-400">DATA BASE</td><td class="text-gray-900">${new Date().toLocaleDateString('pt-BR')}</td></tr>
           </table>
         </div>
