@@ -61,17 +61,24 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
     const vub = s.price / s.areaTotal;
     let factorProduct = OFFER_FACTOR;
 
+    // Fator de Localização (Cidades vizinhas)
+    const isSameCity = s.city.toLowerCase().trim() === data.city.toLowerCase().trim();
+    const fLoc = isSameCity ? 1.00 : 0.88; // Penalização de 12% para amostras fora da cidade principal
+    factorProduct *= fLoc;
+
     if (isRural) {
-      // Comparação de fatores entre Avaliando e Amostra
+      // Comparação de fatores agronômicos
       const fAtiv = getRuralFactor('activity', data.ruralActivity) / getRuralFactor('activity', s.ruralActivity);
       const fTopo = getRuralFactor('topography', data.topography) / getRuralFactor('topography', s.topography);
       const fAces = getRuralFactor('access', data.access) / getRuralFactor('access', s.access);
       const fCap = getRuralFactor('capability', data.landCapability) / getRuralFactor('capability', s.landCapability);
       factorProduct *= (fAtiv * fTopo * fAces * fCap);
     } else {
-      // Urbano Simples
-      const fLoc = (s.neighborhood === data.neighborhood) ? 1.0 : 0.92;
-      factorProduct *= fLoc;
+      // Urbano Simples (Fator Bairro)
+      if (isSameCity) {
+        const fBairro = (s.neighborhood === data.neighborhood) ? 1.0 : 0.92;
+        factorProduct *= fBairro;
+      }
     }
 
     const vuh = vub * factorProduct * OTHERS_FACTOR;
@@ -128,16 +135,16 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
             <thead class="bg-gray-100 uppercase font-bold text-gray-500">
               <tr>
                 <th class="p-3 border-b">Amostra</th>
-                <th class="p-3 border-b text-right">Preço</th>
+                <th class="p-3 border-b">Localidade</th>
                 <th class="p-3 border-b text-right">Área</th>
                 <th class="p-3 border-b text-right">Unit. Homog.</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
-              ${processed.slice(0, 10).map((s, i) => `
+              ${processed.slice(0, 15).map((s, i) => `
                 <tr>
                   <td class="p-3 font-medium">Amostra ${i+1} (${s.source})</td>
-                  <td class="p-3 text-right">${fmt.format(s.price)}</td>
+                  <td class="p-3 text-gray-500">${s.city}/${s.state}</td>
                   <td class="p-3 text-right">${s.areaTotal.toLocaleString('pt-BR')} ${unit}</td>
                   <td class="p-3 text-right font-bold text-gray-900">${fmt.format(s.vuh)}</td>
                 </tr>
@@ -167,22 +174,44 @@ const calculateAndGenerateReport = (data: PropertyData, pool: MarketSample[]): V
 };
 
 export const performValuation = async (data: PropertyData): Promise<ValuationResult> => {
-  // 1. PRIMEIRO PASSO: Consultar banco de dados (Amostras Reais da Equipe)
+  console.log(`Iniciando Avaliação Bandeira Agro para: ${data.city} - ${data.type}`);
+
+  // 1. BUSCA LOCAL NO BANCO DE DADOS (Mesma Cidade)
   let pool: MarketSample[] = await filterSamples(data.type, data.city, data.state);
-  
-  // 2. SEGUNDO PASSO: Se houver menos de 5 amostras, acionar IA para busca pública
+  console.log(`Amostras locais encontradas: ${pool.length}`);
+
+  // 2. BUSCA REGIONAL NO BANCO DE DADOS (Cidades Vizinhas / Estado)
   if (pool.length < 5) {
+    console.log("Amostras insuficientes na cidade. Expandindo busca para o banco de dados estadual...");
+    const stateSamples = await filterSamples(data.type, null, data.state);
+    
+    // Filtra amostras que não são da mesma cidade para evitar duplicidade e limitar a vizinhança
+    const regionalSamples = stateSamples.filter(s => 
+      s.city.toLowerCase().trim() !== data.city.toLowerCase().trim()
+    );
+
+    // Adiciona ao pool removendo possíveis duplicatas de URL
+    for (const s of regionalSamples) {
+      if (!pool.some(p => p.url === s.url)) {
+        pool.push(s);
+      }
+      if (pool.length >= 20) break; // Limite de sanidade
+    }
+    console.log(`Pool após expansão regional do banco: ${pool.length}`);
+  }
+
+  // 3. BUSCA IA (Último Recurso)
+  if (pool.length < 5) {
+    console.log("Acionando Inteligência Artificial para busca de anúncios públicos...");
     try {
       const iaSamples = await findMarketSamplesIA(data, 'city');
-      // Filtra duplicatas para não repetir imóveis que já podem estar no banco
       const filteredIA = iaSamples.filter(ia => !pool.some(p => p.url === ia.url || p.title === ia.title));
       pool = [...pool, ...filteredIA];
     } catch (e) {
-      console.warn("Falha na busca complementar de IA. Prosseguindo com dados locais.");
+      console.warn("Falha na busca complementar de IA.");
     }
   }
 
-  // 3. Processamento Final
   return calculateAndGenerateReport(data, pool);
 };
 
