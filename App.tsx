@@ -8,6 +8,7 @@ import ReportScreen from './components/ReportScreen';
 import LoginScreen from './components/LoginScreen';
 import AdminDashboard from './components/AdminDashboard';
 import ApiKeySetup from './components/ApiKeySetup';
+import UserManual from './components/UserManual';
 import { AppStep, PropertyData, PropertyType, ValuationResult } from './types';
 import { generateUrbanAutomatedValuation } from './services/valuationService';
 import { INITIAL_PROPERTY_DATA } from './constants';
@@ -67,7 +68,8 @@ const App = () => {
   return (
     <Layout 
       onLoginClick={() => setCurrentStep(AppStep.LOGIN)} 
-      showLoginButton={currentStep !== AppStep.DASHBOARD && currentStep !== AppStep.LOGIN}
+      onManualClick={() => setCurrentStep(AppStep.MANUAL)}
+      showLoginButton={currentStep !== AppStep.DASHBOARD && currentStep !== AppStep.LOGIN && currentStep !== AppStep.MANUAL}
     >
       {!hasApiKey ? (
         <ApiKeySetup onConfigured={() => setHasApiKey(true)} />
@@ -98,6 +100,7 @@ const App = () => {
             />
           )}
           {currentStep === AppStep.DASHBOARD && <AdminDashboard onLogout={handleReset} />}
+          {currentStep === AppStep.MANUAL && <UserManual onBack={handleReset} />}
         </>
       )}
     </Layout>

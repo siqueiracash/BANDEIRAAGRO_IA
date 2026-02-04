@@ -73,6 +73,8 @@ export interface MarketSample {
   
   // Campo para cálculo
   adjustedPricePerUnit?: number;
+  vub?: number;
+  vuh?: number;
 }
 
 export interface ValuationResult {
@@ -93,5 +95,6 @@ export enum AppStep {
   LOADING = 2,
   RESULT = 3,
   LOGIN = 4,
-  DASHBOARD = 5
+  DASHBOARD = 5,
+  MANUAL = 6
 }
